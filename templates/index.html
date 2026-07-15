@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Smart Home HMI Dashboard — Modul Praktikum IoT untuk kontrol dan monitoring perangkat rumah pintar secara real-time.">
+    <title>Smart Home HMI Dashboard — SCADA Monitor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <!-- ════════════ HEADER ════════════ -->
+    <header class="header" id="main-header">
+        <div class="header-left">
+            <div class="header-logo">⌂</div>
+            <div>
+                <div class="header-title">Smart Home HMI Dashboard</div>
+                <div class="header-subtitle">SCADA / Supervisory Control & Data Acquisition</div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="connection-status" id="connection-status">
+                <span class="connection-dot"></span>
+                <span id="connection-text">Connecting...</span>
+            </div>
+            <div class="timestamp-display" id="timestamp-display">--:--:--</div>
+        </div>
+    </header>
+
+    <!-- ════════════ MAIN LAYOUT ════════════ -->
+    <main class="main-container">
+
+        <!-- ──── Floor Plan ──── -->
+        <section class="floorplan-container">
+            <div class="floorplan-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-title-icon">🏠</span>
+                        Denah Rumah — Floor Plan
+                    </div>
+                    <span class="card-badge">Live View</span>
+                </div>
+
+                <div class="denah-container" id="denah-container">
+                    <div class="denah-wrapper" id="denah-wrapper">
+                        <!-- Gambar Denah Rumah Asli -->
+                        <img src="{{ url_for('static', filename='images/denah_rumah.png') }}"
+                             alt="Denah Rumah Smart Home"
+                             class="denah-image"
+                             id="denah-image" />
+
+                        <!-- ═══════════════════════════════════════════
+                             OVERLAY ICONS — position: absolute
+                             Sesuaikan nilai top/left (%) agar pas
+                             dengan gambar denah Anda.
+                             ═══════════════════════════════════════════ -->
+
+                        <!-- ═══ LAMPU — Ruang Tamu ═══ -->
+                        <div class="overlay-icon lamp-icon off pos-lampu-tamu" id="lamp-ruang_tamu"
+                             title="Lampu Ruang Tamu">
+                            <span class="icon-emoji">💡</span>
+                            <span class="icon-label">Lampu</span>
+                        </div>
+
+                        <!-- ═══ LAMPU — Dapur ═══ -->
+                        <div class="overlay-icon lamp-icon off pos-lampu-dapur" id="lamp-dapur"
+                             title="Lampu Dapur">
+                            <span class="icon-emoji">💡</span>
+                            <span class="icon-label">Lampu</span>
+                        </div>
+
+                        <!-- ═══ LAMPU — Kamar ═══ -->
+                        <div class="overlay-icon lamp-icon off pos-lampu-kamar" id="lamp-kamar"
+                             title="Lampu Kamar">
+                            <span class="icon-emoji">💡</span>
+                            <span class="icon-label">Lampu</span>
+                        </div>
+
+                        <!-- ═══ LAMPU — Teras ═══ -->
+                        <div class="overlay-icon lamp-icon off pos-lampu-teras" id="lamp-teras"
+                             title="Lampu Teras">
+                            <span class="icon-emoji">💡</span>
+                            <span class="icon-label">Lampu</span>
+                        </div>
+
+                        <!-- ═══ SENSOR — Ruang Tamu (Fire / Gas / PIR) ═══ -->
+                        <div class="overlay-icon sensor-icon safe pos-fire-tamu" id="sensor-ruang_tamu-fire"
+                             title="Fire Sensor — Ruang Tamu">
+                            <span class="icon-emoji">🔥</span>
+                            <span class="icon-label" id="sensor-label-ruang_tamu-fire">FIRE</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-gas-tamu" id="sensor-ruang_tamu-gas"
+                             title="Gas Sensor — Ruang Tamu">
+                            <span class="icon-emoji">💨</span>
+                            <span class="icon-label" id="sensor-label-ruang_tamu-gas">GAS</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-pir-tamu" id="sensor-ruang_tamu-pir"
+                             title="PIR Sensor — Ruang Tamu">
+                            <span class="icon-emoji">👁️</span>
+                            <span class="icon-label" id="sensor-label-ruang_tamu-pir">PIR</span>
+                        </div>
+
+                        <!-- ═══ SENSOR — Dapur ═══ -->
+                        <div class="overlay-icon sensor-icon safe pos-fire-dapur" id="sensor-dapur-fire"
+                             title="Fire Sensor — Dapur">
+                            <span class="icon-emoji">🔥</span>
+                            <span class="icon-label" id="sensor-label-dapur-fire">FIRE</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-gas-dapur" id="sensor-dapur-gas"
+                             title="Gas Sensor — Dapur">
+                            <span class="icon-emoji">💨</span>
+                            <span class="icon-label" id="sensor-label-dapur-gas">GAS</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-pir-dapur" id="sensor-dapur-pir"
+                             title="PIR Sensor — Dapur">
+                            <span class="icon-emoji">👁️</span>
+                            <span class="icon-label" id="sensor-label-dapur-pir">PIR</span>
+                        </div>
+
+                        <!-- ═══ SENSOR — Kamar ═══ -->
+                        <div class="overlay-icon sensor-icon safe pos-fire-kamar" id="sensor-kamar-fire"
+                             title="Fire Sensor — Kamar">
+                            <span class="icon-emoji">🔥</span>
+                            <span class="icon-label" id="sensor-label-kamar-fire">FIRE</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-gas-kamar" id="sensor-kamar-gas"
+                             title="Gas Sensor — Kamar">
+                            <span class="icon-emoji">💨</span>
+                            <span class="icon-label" id="sensor-label-kamar-gas">GAS</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-pir-kamar" id="sensor-kamar-pir"
+                             title="PIR Sensor — Kamar">
+                            <span class="icon-emoji">👁️</span>
+                            <span class="icon-label" id="sensor-label-kamar-pir">PIR</span>
+                        </div>
+
+                        <!-- ═══ SENSOR — Teras ═══ -->
+                        <div class="overlay-icon sensor-icon safe pos-fire-teras" id="sensor-teras-fire"
+                             title="Fire Sensor — Teras">
+                            <span class="icon-emoji">🔥</span>
+                            <span class="icon-label" id="sensor-label-teras-fire">FIRE</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-gas-teras" id="sensor-teras-gas"
+                             title="Gas Sensor — Teras">
+                            <span class="icon-emoji">💨</span>
+                            <span class="icon-label" id="sensor-label-teras-gas">GAS</span>
+                        </div>
+                        <div class="overlay-icon sensor-icon safe pos-pir-teras" id="sensor-teras-pir"
+                             title="PIR Sensor — Teras">
+                            <span class="icon-emoji">👁️</span>
+                            <span class="icon-label" id="sensor-label-teras-pir">PIR</span>
+                        </div>
+
+                        <!-- ═══ GATE / PAGAR ═══ -->
+                        <div class="overlay-gate pos-gate" id="overlay-gate">
+                            <div class="overlay-gate-pillar"></div>
+                            <div class="overlay-gate-leaf left" id="overlay-gate-left"></div>
+                            <div class="overlay-gate-leaf right" id="overlay-gate-right"></div>
+                            <div class="overlay-gate-pillar"></div>
+                            <span class="overlay-gate-label closed" id="overlay-gate-label">CLOSED</span>
+                        </div>
+
+                    </div><!-- /.denah-wrapper -->
+                </div>
+
+                <!-- Legend -->
+                <div class="legend">
+                    <div class="legend-item">
+                        <span class="legend-dot lamp-on"></span> Lampu ON
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot lamp-off"></span> Lampu OFF
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot sensor-safe"></span> Sensor AMAN
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-dot sensor-active"></span> Sensor ACTIVE
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ──── Telemetry Panel ──── -->
+        <aside class="telemetry-panel">
+
+            <!-- Telemetry Metrics -->
+            <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-title-icon">⚡</span>
+                        Telemetri Daya
+                    </div>
+                    <span class="card-badge">Real-Time</span>
+                </div>
+                <div class="metrics-grid">
+                    <div class="metric-card voltage" id="metric-voltage">
+                        <div class="metric-icon">🔌</div>
+                        <div class="metric-label">Voltage</div>
+                        <div class="metric-value" id="val-voltage">--<span class="metric-unit">V</span></div>
+                    </div>
+                    <div class="metric-card current" id="metric-current">
+                        <div class="metric-icon">〰️</div>
+                        <div class="metric-label">Current</div>
+                        <div class="metric-value" id="val-current">--<span class="metric-unit">A</span></div>
+                    </div>
+                    <div class="metric-card power" id="metric-power">
+                        <div class="metric-icon">⚡</div>
+                        <div class="metric-label">Power</div>
+                        <div class="metric-value" id="val-power">--<span class="metric-unit">W</span></div>
+                    </div>
+                    <div class="metric-card energy" id="metric-energy">
+                        <div class="metric-icon">📊</div>
+                        <div class="metric-label">Energy</div>
+                        <div class="metric-value" id="val-energy">--<span class="metric-unit">kWh</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Power Chart -->
+            <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-title-icon">📈</span>
+                        Grafik Daya Real-Time
+                    </div>
+                    <span class="card-badge">Chart</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="powerChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Device Status -->
+            <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-title-icon">📡</span>
+                        Status Perangkat
+                    </div>
+                    <span class="card-badge">Monitor</span>
+                </div>
+                <div class="device-list" id="device-list">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Gate Status -->
+            <div class="panel-card gate-status-card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <span class="card-title-icon">🚧</span>
+                        Status Gerbang
+                    </div>
+                </div>
+                <div class="gate-visual" id="gate-visual-panel">
+                    <div class="gate-pillar"></div>
+                    <div class="gate-leaf left" id="gate-panel-left"></div>
+                    <div class="gate-leaf right" id="gate-panel-right"></div>
+                    <div class="gate-pillar"></div>
+                </div>
+                <div class="gate-label closed" id="gate-label-panel">CLOSED</div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- ════════════ SCRIPTS ════════════ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
