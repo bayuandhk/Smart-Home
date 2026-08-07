@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#071426">
+    <title>SH Studio — Adaptive IoT &amp; HMI Builder</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="studio-page">
+
+    <script type="application/json" id="init-widgets-data">
+        {{ widgets_json | safe }}
+    </script>
+
+    <header class="studio-header">
+        <div class="studio-brand">
+            <div class="studio-brand-mark">SH</div>
+            <div class="studio-brand-copy">
+                <small>ADAPTIVE HMI BUILDER</small>
+                <strong>Project: {{ project.name }}</strong>
+            </div>
+        </div>
+        <div class="studio-header-actions">
+            <a href="/" class="studio-nav-link">← Dashboard</a>
+            <span class="studio-mode-badge"><i></i> Interactive setup mode</span>
+        </div>
+    </header>
+
+    <div class="studio-container">
+        <!-- Configuration panel -->
+        <aside class="studio-panel">
+            
+            <section class="studio-panel-section">
+                <div class="panel-heading">
+                    <span class="panel-heading-number">2</span>
+                    Function Block
+                </div>
+                <p class="panel-helper">Jumlah channel menentukan batas mapping relay pada widget output.</p>
+                <select id="relay-select" class="form-select" onchange="onRelayChanged()">
+                    <option value="RELAY_4CH" {% if function_blocks and function_blocks[0].module_type == 'RELAY_4CH' %}selected{% endif %}>Modul Relay 4 Channel</option>
+                    <option value="RELAY_8CH" {% if not function_blocks or function_blocks[0].module_type == 'RELAY_8CH' %}selected{% endif %}>Modul Relay 8 Channel</option>
+                    <option value="RELAY_16CH" {% if function_blocks and function_blocks[0].module_type == 'RELAY_16CH' %}selected{% endif %}>Modul Relay 16 Channel</option>
+                </select>
+            </section>
+
+            <section class="studio-panel-section">
+                <div class="panel-heading">
+                    <span class="panel-heading-number">3</span>
+                    Background Layout
+                </div>
+                <p class="panel-helper">Pilih, unggah, atau hapus gambar denah referensi tata letak widget.</p>
+                
+                <select id="denah-select" class="form-select" onchange="onDenahChanged()">
+                    <option value="/static/images/denah_rumah.png" {% if project.background_image == '/static/images/denah_rumah.png' %}selected{% endif %}>Denah Rumah — Default</option>
+                    <option value="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85" {% if project.background_image != '/static/images/denah_rumah.png' and not project.background_image.startswith('/static/images/denah_project_') %}selected{% endif %}>Gudang / Industri — Custom</option>
+                    {% if project.background_image.startswith('/static/images/denah_project_') %}
+                    <option value="{{ project.background_image }}" selected>Denah Terunggah (Aktif)</option>
+                    {% endif %}
+                </select>
+
+                <input type="file" id="file-input-denah" accept="image/*" style="display: none;" onchange="handleUploadDenah(event)">
+                
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 8px;">
+                    <button type="button" class="btn-action" style="min-height: 34px;" onclick="document.getElementById('file-input-denah').click()">
+                        📁 Unggah Denah...
+                    </button>
+                    <button type="button" class="btn-action" style="min-height: 34px; background: var(--red-soft); border-color: rgba(255,82,99,0.3); color: #ff9ca6; padding: 0 10px;" onclick="handleDeleteDenah()" title="Hapus Denah Terunggah & Kembali ke Default">
+                        🗑️
+                    </button>
+                </div>
+            </section>
+
+            <section class="studio-panel-section">
+                <div class="panel-heading">
+                    <span class="panel-heading-number">4</span>
+                    Widget Library
+                </div>
+                <p class="panel-helper">Drag widget ke canvas, beri nama, lalu lakukan mapping I/O di panel kanan.</p>
+                <div class="catalog-list">
+                    <!-- KELOMPOK OUTPUT (RELAY / MOTOR) -->
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="LAMP_INDICATOR" data-icon="💡" data-label="LAMPU">
+                        <span class="catalog-icon">💡</span>
+                        <span class="catalog-copy"><strong>Lamp Indicator</strong><small>Digital output relay</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="PUMP_CONTROL" data-icon="💧" data-label="PUMP">
+                        <span class="catalog-icon">💧</span>
+                        <span class="catalog-copy"><strong>Water Pump</strong><small>Motor / pump control</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="GATE_CONTROL" data-icon="🚪" data-label="GATE">
+                        <span class="catalog-icon">🚪</span>
+                        <span class="catalog-copy"><strong>Gate / Door</strong><small>Motorized gate control</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="FAN_CONTROL" data-icon="🌀" data-label="FAN">
+                        <span class="catalog-icon">🌀</span>
+                        <span class="catalog-copy"><strong>Exhaust / Fan</strong><small>Airflow control relay</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="SMART_PLUG" data-icon="🔌" data-label="PLUG">
+                        <span class="catalog-icon">🔌</span>
+                        <span class="catalog-copy"><strong>Smart Plug</strong><small>Appliance power control</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+
+                    <!-- KELOMPOK INPUT (SENSOR / ALARM) -->
+                     <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="SENSOR_POWER" data-icon="⚡" data-label="POWER">
+                        <span class="catalog-icon">⚡</span>
+                        <span class="catalog-copy"><strong>Power Meter</strong><small>Voltage, Current, Power</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="SENSOR_FIRE" data-icon="🔥" data-label="FIRE">
+                        <span class="catalog-icon">🔥</span>
+                        <span class="catalog-copy"><strong>Fire Sensor</strong><small>Digital safety input</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="SENSOR_GAS" data-icon="💨" data-label="GAS">
+                        <span class="catalog-icon">💨</span>
+                        <span class="catalog-copy"><strong>Gas Sensor</strong><small>MQ-series gas input</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="SENSOR_PIR" data-icon="🏃" data-label="PIR">
+                        <span class="catalog-icon">🏃</span>
+                        <span class="catalog-copy"><strong>PIR Motion</strong><small>Occupancy detection</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                    <div class="catalog-item" draggable="true" ondragstart="drag(event)" data-type="SENSOR_TEMP" data-icon="🌡️" data-label="TEMP">
+                        <span class="catalog-icon">🌡️</span>
+                        <span class="catalog-copy"><strong>Temp / Humidity</strong><small>Analog sensor data</small></span>
+                        <span class="catalog-drag">⋮⋮</span>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Canvas -->
+        <main class="canvas-shell">
+            <div class="canvas-topbar">
+                <div class="canvas-topbar-title"><span>⌖</span> Layout Canvas</div>
+                <div class="canvas-topbar-hint">Drop dan geser widget pada area gambar</div>
+            </div>
+            <div class="canvas-area" id="canvas-workspace" ondrop="drop(event)" ondragover="allowDrop(event)">
+                <div class="canvas-stage" id="canvas-stage">
+                    <img src="{{ project.background_image }}" class="canvas-img" id="denah-target" alt="Denah target">
+                </div>
+            </div>
+        </main>
+
+        <!-- Wiring panel -->
+        <aside class="studio-panel">
+            <section class="studio-panel-section">
+                <div class="panel-heading">
+                    <span class="panel-heading-number">5</span>
+                    Link &amp; Match I/O
+                </div>
+                <p class="panel-helper">Tentukan channel relay dan GPIO untuk setiap widget. Hindari penggunaan pin yang sama tanpa alasan desain yang jelas.</p>
+                <div id="wiring-list" class="wiring-list"></div>
+            </section>
+
+            <div class="studio-actions">
+                <button class="btn-action" type="button" onclick="saveStudioState(true)">💾 Simpan Layout</button>
+                <button class="btn-action success" type="button" onclick="generateJSON({{ project.id }})">↗ Generate JSON</button>
+            </div>
+
+            <section class="studio-panel-section json-section">
+                <div class="panel-heading">
+                    <span class="panel-heading-number">{ }</span>
+                    Live JSON Tree
+                </div>
+                <div id="json-preview" class="json-preview">// Simpan atau generate konfigurasi untuk melihat output...</div>
+            </section>
+        </aside>
+    </div>
+
+    <script>
+        const BOARD_GPIOS = {
+            'ESP32-WROOM-32': [23, 22, 21, 19, 18, 5, 4, 2, 15, 13, 12, 14, 27, 26, 25, 33, 32, 35, 34],
+            'ESP8266-NodeMCU': [16, 5, 4, 0, 2, 14, 12, 13, 15],
+            'Arduino-Mega-2560': [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35],
+            'Raspberry-Pi-Pico': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 26, 27, 28],
+        };
+
+        const WIDGET_ICONS = {
+            LAMP_INDICATOR: '💡',
+            PUMP_CONTROL: '💧',
+            GATE_CONTROL: '🚪',
+            FAN_CONTROL: '🌀',
+            SMART_PLUG: '🔌',
+            SENSOR_FIRE: '🔥',
+            SENSOR_GAS: '💨',
+            SENSOR_PIR: '🏃',
+            SENSOR_TEMP: '🌡️',
+            SENSOR_POWER: '⚡'
+        };
+
+        let currentWidgets = [];
+        let draggedCanvasItem = null;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        window.addEventListener('load', () => {
+            const rawJson = document.getElementById('init-widgets-data').textContent;
+            try {
+                const parsed = JSON.parse(rawJson || '[]');
+                currentWidgets = Array.isArray(parsed) ? parsed.map(normalizeWidget) : [];
+            } catch (error) {
+                console.error('Gagal membaca JSON awal:', error);
+                currentWidgets = [];
+            }
+
+            syncCanvasStage();
+            renderAllWidgets();
+            renderWiringList();
+        });
+
+        window.addEventListener('resize', syncCanvasStage);
+        document.getElementById('denah-target').addEventListener('load', () => {
+            syncCanvasStage();
+            renderAllWidgets();
+        });
+
+        function normalizeWidget(widget, index) {
+            const type = widget.widget_type || 'LAMP_INDICATOR';
+            const board = document.getElementById('board-select')?.value || 'ESP32-WROOM-32';
+            const pins = BOARD_GPIOS[board] || [23, 22, 21, 19];
+            const mapping = widget.mapping || {};
+
+            return {
+                ...widget,
+                id: widget.id || `w_${Date.now()}_${index}`,
+                widget_id: widget.widget_id || `W${index + 1}`,
+                label_name: widget.label_name || `widget_${index + 1}`,
+                zone_name: widget.zone_name || 'Area Umum',
+                widget_type: type,
+                icon: widget.icon || WIDGET_ICONS[type] || '●',
+                pos_x: Number.isFinite(Number(widget.pos_x)) ? Number(widget.pos_x) : 50,
+                pos_y: Number.isFinite(Number(widget.pos_y)) ? Number(widget.pos_y) : 50,
+                mapping: {
+                    channel_index: Number.isFinite(Number(mapping.channel_index)) ? Number(mapping.channel_index) : index,
+                    gpio_pin: Number.isFinite(Number(mapping.gpio_pin)) ? Number(mapping.gpio_pin) : pins[index % pins.length],
+                },
+            };
+        }
+
+        function syncCanvasStage() {
+            const workspace = document.getElementById('canvas-workspace');
+            const stage = document.getElementById('canvas-stage');
+            const image = document.getElementById('denah-target');
+            if (!workspace || !stage || !image) return;
+
+            const availableWidth = Math.max(100, workspace.clientWidth - 32);
+            const availableHeight = Math.max(100, workspace.clientHeight - 84);
+            const naturalWidth = image.naturalWidth || 1200;
+            const naturalHeight = image.naturalHeight || 800;
+            const ratio = naturalWidth / naturalHeight;
+
+            let width = availableWidth;
+            let height = width / ratio;
+            if (height > availableHeight) {
+                height = availableHeight;
+                width = height * ratio;
+            }
+
+            stage.style.width = `${Math.max(100, width)}px`;
+            stage.style.height = `${Math.max(100, height)}px`;
+        }
+
+        function onDenahChanged() {
+            document.getElementById('denah-target').src = document.getElementById('denah-select').value;
+        }
+
+        function onBoardChanged() {
+            const board = document.getElementById('board-select').value;
+            const pins = BOARD_GPIOS[board] || [23, 22, 21, 19];
+            currentWidgets.forEach((widget, index) => {
+                if (!pins.includes(Number(widget.mapping.gpio_pin))) {
+                    widget.mapping.gpio_pin = pins[index % pins.length];
+                }
+            });
+            renderWiringList();
+        }
+
+        function onRelayChanged() {
+            const maxChannels = getMaxChannels();
+            currentWidgets.forEach((widget, index) => {
+                if (Number(widget.mapping.channel_index) >= maxChannels) {
+                    widget.mapping.channel_index = index % maxChannels;
+                }
+            });
+            renderWiringList();
+        }
+
+        function getMaxChannels() {
+            return Number.parseInt(document.getElementById('relay-select').value.split('_')[1], 10) || 8;
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+        }
+
+        function drag(event) {
+            const source = event.currentTarget;
+            event.dataTransfer.effectAllowed = 'copy';
+            event.dataTransfer.setData('type', source.dataset.type || '');
+            event.dataTransfer.setData('icon', source.dataset.icon || '●');
+            event.dataTransfer.setData('label', source.dataset.label || 'WIDGET');
+        }
+
+        function drop(event) {
+          event.preventDefault();
+          const type = event.dataTransfer.getData('type');
+          const icon = event.dataTransfer.getData('icon');
+          const label = event.dataTransfer.getData('label');
+          if (!type) return;
+
+          const stage = document.getElementById('canvas-stage');
+          const rect = stage.getBoundingClientRect();
+          const x = ((event.clientX - rect.left) / rect.width) * 100;
+          const y = ((event.clientY - rect.top) / rect.height) * 100;
+          if (x < 0 || x > 100 || y < 0 || y > 100) return;
+
+          // PROMPT 1: Nama Perangkat
+          const name = window.prompt(
+              '1. Masukkan Nama Perangkat (cth: lampu_utama, exhaust, cctv):',
+              `${label}_${currentWidgets.length + 1}`
+          );
+          if (!name) return;
+
+          // PROMPT 2: Nama Ruangan / Zona
+          const zone = window.prompt(
+              '2. Masukkan Nama Ruangan / Zona (cth: Living Room, Gudang A, Lab Komputer):',
+              'Area Umum'
+          );
+          if (zone === null) return;
+
+          const board = document.getElementById('board-select') ? document.getElementById('board-select').value : 'ESP32-WROOM-32';
+          const pins = BOARD_GPIOS[board] || [23, 22, 21, 19];
+          const cleanLabel = name
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9_\-]+/g, '_')
+              .replace(/^_+|_+$/g, '');
+
+          currentWidgets.push({
+            id: `w_${Date.now()}`,
+            widget_id: `W${currentWidgets.length + 1}`,
+            label_name: cleanLabel || `widget_${currentWidgets.length + 1}`,
+            zone_name: zone.trim() || 'Area Umum',
+            widget_type: type,
+            pos_x: Number(Math.min(96, Math.max(4, x)).toFixed(1)),
+            pos_y: Number(Math.min(96, Math.max(4, y)).toFixed(1)),
+            icon,
+            mapping: {
+              channel_index: currentWidgets.length % getMaxChannels(),
+              gpio_pin: pins[currentWidgets.length % pins.length] || 23,
+            },
+          });
+
+          renderAllWidgets();
+          renderWiringList();
+        }
+
+        function renderAllWidgets() {
+            const stage = document.getElementById('canvas-stage');
+            stage.querySelectorAll('.canvas-widget').forEach((element) => element.remove());
+
+            currentWidgets.forEach((widget) => {
+                const element = document.createElement('div');
+                const isSensor = widget.widget_type.startsWith('SENSOR_');
+                element.className = `overlay-icon ${isSensor ? 'sensor-icon safe' : 'lamp-icon off'} canvas-widget`;
+                element.id = widget.id;
+                element.style.left = `${widget.pos_x}%`;
+                element.style.top = `${widget.pos_y}%`;
+                element.title = widget.label_name;
+
+                const icon = document.createElement('span');
+                icon.className = 'icon-emoji';
+                icon.textContent = widget.icon || WIDGET_ICONS[widget.widget_type] || '●';
+
+                const label = document.createElement('span');
+                label.className = 'icon-label';
+                label.textContent = String(widget.label_name).toUpperCase();
+
+                element.append(icon, label);
+                element.addEventListener('mousedown', startCanvasDrag);
+                element.addEventListener('touchstart', startCanvasDrag, { passive: false });
+                stage.appendChild(element);
+            });
+        }
+
+        function getPointer(event) {
+            const point = event.touches ? event.touches[0] : event;
+            return { x: point.clientX, y: point.clientY };
+        }
+
+        function startCanvasDrag(event) {
+            event.preventDefault();
+            draggedCanvasItem = currentWidgets.find((widget) => widget.id === this.id);
+            if (!draggedCanvasItem) return;
+
+            const pointer = getPointer(event);
+            const rect = this.getBoundingClientRect();
+            dragOffsetX = pointer.x - (rect.left + rect.width / 2);
+            dragOffsetY = pointer.y - (rect.top + rect.height / 2);
+            this.style.zIndex = '999';
+
+            document.addEventListener('mousemove', onCanvasDrag);
+            document.addEventListener('mouseup', endCanvasDrag);
+            document.addEventListener('touchmove', onCanvasDrag, { passive: false });
+            document.addEventListener('touchend', endCanvasDrag);
+        }
+
+        function onCanvasDrag(event) {
+            if (!draggedCanvasItem) return;
+            event.preventDefault();
+
+            const stageRect = document.getElementById('canvas-stage').getBoundingClientRect();
+            const pointer = getPointer(event);
+            let centerX = pointer.x - stageRect.left - dragOffsetX;
+            let centerY = pointer.y - stageRect.top - dragOffsetY;
+
+            centerX = Math.max(26, Math.min(centerX, stageRect.width - 26));
+            centerY = Math.max(26, Math.min(centerY, stageRect.height - 26));
+
+            draggedCanvasItem.pos_x = Number(((centerX / stageRect.width) * 100).toFixed(1));
+            draggedCanvasItem.pos_y = Number(((centerY / stageRect.height) * 100).toFixed(1));
+
+            const element = document.getElementById(draggedCanvasItem.id);
+            if (element) {
+                element.style.left = `${draggedCanvasItem.pos_x}%`;
+                element.style.top = `${draggedCanvasItem.pos_y}%`;
+            }
+        }
+
+        function endCanvasDrag() {
+            if (draggedCanvasItem) {
+                const element = document.getElementById(draggedCanvasItem.id);
+                if (element) element.style.removeProperty('z-index');
+            }
+            draggedCanvasItem = null;
+            document.removeEventListener('mousemove', onCanvasDrag);
+            document.removeEventListener('mouseup', endCanvasDrag);
+            document.removeEventListener('touchmove', onCanvasDrag);
+            document.removeEventListener('touchend', endCanvasDrag);
+        }
+
+        function renderWiringList() {
+            const container = document.getElementById('wiring-list');
+            container.innerHTML = '';
+
+            if (!currentWidgets.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-wiring';
+                empty.textContent = 'Belum ada widget. Drag komponen dari Widget Library ke layout canvas.';
+                container.appendChild(empty);
+                return;
+            }
+
+            const board = document.getElementById('board-select') ? document.getElementById('board-select').value : 'ESP32-WROOM-32';
+            const pins = BOARD_GPIOS[board] || [23, 22, 21, 19];
+            const maxChannels = getMaxChannels();
+
+            currentWidgets.forEach((widget) => {
+                const row = document.createElement('div');
+                row.className = 'wiring-row';
+
+                // Tampilkan Nama Perangkat & Zona [Area]
+                const name = document.createElement('div');
+                name.className = 'wiring-name';
+                name.title = `Klik ganda untuk ubah zona — Perangkat: ${widget.label_name} | Zona: ${widget.zone_name}`;
+                name.style.cursor = 'pointer';
+                name.innerHTML = `${widget.icon} <strong>${widget.label_name}</strong> <br><small style="color: #639aff;">[ ${widget.zone_name} ]</small>`;
+                
+                // Event Klik: Ubah zona sewaktu-waktu dari panel wiring
+                name.addEventListener('dblclick', () => {
+                    const newZone = window.prompt(
+                        `Ubah Nama Zona / Ruangan untuk perangkat "${widget.label_name}":`, 
+                        widget.zone_name
+                    );
+                    if (newZone !== null && newZone.trim() !== '') {
+                        widget.zone_name = newZone.trim();
+                        renderWiringList();
+                    }
+                });
+
+                const controls = document.createElement('div');
+                controls.className = 'wiring-controls';
+
+                const channelSelect = document.createElement('select');
+                channelSelect.className = 'wiring-select';
+                channelSelect.setAttribute('aria-label', `Channel relay ${widget.label_name}`);
+                for (let channel = 0; channel < maxChannels; channel += 1) {
+                    const option = new Option(`CH ${channel}`, String(channel), false, Number(widget.mapping.channel_index) === channel);
+                    channelSelect.add(option);
+                }
+                channelSelect.addEventListener('change', () => updateMapping(widget.id, 'ch', channelSelect.value));
+
+                const pinSelect = document.createElement('select');
+                pinSelect.className = 'wiring-select gpio';
+                pinSelect.setAttribute('aria-label', `GPIO ${widget.label_name}`);
+                pins.forEach((pin) => {
+                    const option = new Option(`GPIO ${pin}`, String(pin), false, Number(widget.mapping.gpio_pin) === pin);
+                    pinSelect.add(option);
+                });
+                pinSelect.addEventListener('change', () => updateMapping(widget.id, 'pin', pinSelect.value));
+
+                controls.append(channelSelect, pinSelect);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.type = 'button';
+                deleteButton.className = 'btn-delete';
+                deleteButton.title = `Hapus ${widget.label_name}`;
+                deleteButton.textContent = '×';
+                deleteButton.addEventListener('click', () => deleteWidget(widget.id));
+
+                row.append(name, controls, deleteButton);
+                container.appendChild(row);
+            });
+        }
+
+        function updateMapping(id, type, value) {
+            const widget = currentWidgets.find((item) => item.id === id);
+            if (!widget) return;
+            if (type === 'ch') widget.mapping.channel_index = Number.parseInt(value, 10);
+            if (type === 'pin') widget.mapping.gpio_pin = Number.parseInt(value, 10);
+        }
+
+        function deleteWidget(id) {
+            currentWidgets = currentWidgets.filter((widget) => widget.id !== id);
+            renderAllWidgets();
+            renderWiringList();
+        }
+
+        function buildPayload() {
+            return {
+                board_name: document.getElementById('board-select') ? document.getElementById('board-select').value : 'ESP32-WROOM-32',
+                relay_type: document.getElementById('relay-select').value,
+                total_channels: getMaxChannels(),
+                background_image: document.getElementById('denah-select').value,
+                widgets: currentWidgets.map((widget, index) => ({
+                    widget_id: widget.widget_id,
+                    label_name: widget.label_name,
+                    zone_name: widget.zone_name,
+                    widget_type: widget.widget_type,
+                    pos_x: widget.pos_x,
+                    pos_y: widget.pos_y,
+                    mapping: {
+                        channel_index: widget.mapping.channel_index,
+                        gpio_pin: widget.mapping.gpio_pin,
+                        array_order: index,
+                    },
+                })),
+            };
+        }
+
+        async function saveStudioState(showAlert = true) {
+            const preview = document.getElementById('json-preview');
+            preview.textContent = 'Menyinkronkan layout dan wiring ke SQLite...';
+
+            try {
+                const response = await fetch(`/api/save_studio/{{ project.id }}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildPayload()),
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || `HTTP ${response.status}`);
+
+                preview.textContent = `✓ ${result.message}\n\nKonfigurasi tersimpan. Generate Master JSON untuk melihat output tree.`;
+                if (showAlert) window.alert('Layout dan wiring berhasil disimpan ke database.');
+                return true;
+            } catch (error) {
+                preview.textContent = `✕ Error: ${error.message}`;
+                return false;
+            }
+        }
+
+        async function generateJSON(projectId) {
+            const saved = await saveStudioState(false);
+            if (!saved) return;
+
+            const preview = document.getElementById('json-preview');
+            preview.textContent = 'Mengompilasi Master JSON Tree...';
+
+            try {
+                const response = await fetch(`/api/generate_json/${projectId}`);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || `HTTP ${response.status}`);
+                preview.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                preview.textContent = `✕ Error: ${error.message}`;
+            }
+        }
+
+        async function handleUploadDenah(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const customName = window.prompt(
+                'Masukkan Nama/Label untuk denah baru ini (cth: Lantai 2, Ruang Produksi, Gudang A):',
+                file.name.split('.')[0] || 'Denah Baru'
+            );
+            if (customName === null) {
+                event.target.value = '';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('label', customName.trim() || 'Denah Custom');
+
+            const btn = event.target.nextElementSibling?.firstElementChild || event.target.nextElementSibling;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/upload_denah/{{ project.id }}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (!response.ok) throw new Error(result.message || 'Gagal mengunggah gambar');
+
+                document.getElementById('denah-target').src = result.url;
+                
+                const select = document.getElementById('denah-select');
+                const cleanLabel = result.label || customName;
+                const opt = new Option(`📁 ${cleanLabel} (Aktif)`, result.url, true, true);
+                select.add(opt);
+
+                alert(`✓ Denah "${cleanLabel}" berhasil diunggah dan diaktifkan!`);
+            } catch (error) {
+                alert(`✕ Error: ${error.message}`);
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+                event.target.value = '';
+            }
+        }
+
+        async function handleDeleteDenah() {
+            const select = document.getElementById('denah-select');
+            const currentVal = select.value;
+
+            if (currentVal === '/static/images/denah_rumah.png') {
+                alert('Denah saat ini sudah merupakan denah default sistem.');
+                return;
+            }
+
+            const confirmDel = window.confirm('Apakah Anda yakin ingin menghapus denah kustom ini dan kembali ke denah default?');
+            if (!confirmDel) return;
+
+            try {
+                const response = await fetch(`/api/delete_denah/{{ project.id }}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (!response.ok) throw new Error(result.message || 'Gagal menghapus denah');
+
+                document.getElementById('denah-target').src = result.url;
+
+                for (let i = select.options.length - 1; i >= 0; i--) {
+                    if (select.options[i].value === currentVal) {
+                        select.remove(i);
+                    }
+                }
+                select.value = result.url;
+
+                alert('✓ Denah kustom berhasil dihapus. Denah dikembalikan ke default.');
+            } catch (error) {
+                alert(`✕ Error: ${error.message}`);
+            }
+        }
+    </script>
+    
+</body>
+</html>

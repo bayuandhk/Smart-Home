@@ -5,3 +5,16 @@ __pycache__/
 venv/
 .vscode/
 *.log
+
+# Mengabaikan file executable dan dokumen proyek lokal
+ngrok.exe
+*.pdf
+*.xlsx
+*.docx
+*.pptx
+
+# Mengabaikan gambar root (seperti etl.png), tapi izinkan denah di static
+*.png
+!static/images/*.png
+!static/images/*.jpg
+!static/images/*.webp
