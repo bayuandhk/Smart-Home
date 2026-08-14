@@ -209,6 +209,7 @@ async def virtual_panel_task():
     
     for d_id, ws in list(connected_devices.items()):
         if d_id.startswith("pager"):
+            asyncio.run 
             try:
                 await ws.send(power_update_msg)
             except:
@@ -322,22 +323,22 @@ def save_studio_state(project_id):
     db.session.commit()
 
     # =====================================================================
-    # LIVE RELOAD: Push dua jalur yang terpisah (Relay List & Sensor Manifest)
+    # LIVE RELOAD & SSOT MANIFEST DEPLOYMENT
     # =====================================================================
     try:
       global WS_LOOP
       if WS_LOOP and WS_LOOP.is_running():
         all_widgets = WidgetNode.query.filter_by(project_id=proj.id).all()
+        
         relay_items = []
         sensor_pages = []
-        
+        hw_instances = [] # Array untuk manifest ESP32
+
         for idx, w in enumerate(all_widgets):
+          # A. Kumpulkan data untuk Sinkronisasi UI (Pager)
           if w.widget_type in ['LAMP_INDICATOR', 'PUMP_CONTROL', 'GATE_CONTROL', 'FAN_CONTROL', 'SMART_PLUG']:
               is_on = virtual_state["relay"][idx] if idx < len(virtual_state["relay"]) else False
-              relay_items.append({
-                  "variable": w.label_name,
-                  "value": is_on
-              })
+              relay_items.append({"variable": w.label_name, "value": is_on})
           elif w.widget_type.startswith('SENSOR_'):
               sensor_pages.append({
                   "page_id": f"env_{w.label_name}",
@@ -345,26 +346,57 @@ def save_studio_state(project_id):
                   "title": w.zone_name.upper() if w.zone_name else "AREA UMUM"
               })
 
-        msg_relay = json.dumps({
-            "type": "runtime_list",
-            "from": "server",
-            "to": "all",
-            "payload": {"relay": relay_items}
-        })
-        msg_sensor = json.dumps({
-            "type": "runtime_sensor_manifest",
-            "from": "server",
-            "to": "all",
-            "payload": {"sensor_pages": sensor_pages}
+          # B. Kumpulkan data untuk Hardware Manifest (ESP32 Fajar)
+          if w.mapping and w.widget_type.startswith('SENSOR_'):
+              # Translasi Tipe Sensor Web ke Tipe Hardware
+              hw_sensor_type = "UNKNOWN"
+              if w.widget_type == 'SENSOR_TEMP': hw_sensor_type = "DHT11"
+              elif w.widget_type == 'SENSOR_GAS': hw_sensor_type = "MQ_ANALOG"
+              elif w.widget_type == 'SENSOR_PIR': hw_sensor_type = "PIR_DIGITAL"
+              elif w.widget_type == 'SENSOR_POWER': hw_sensor_type = "PZEM"
+
+
+              raw_pin = w.mapping.gpio_pin 
+
+              # Beri awalan huruf 'A' untuk Analog, dan 'D' untuk Digital
+              if hw_sensor_type == "MQ_ANALOG":
+                  pin_str = f"A{raw_pin}"
+              else:
+                  pin_str = f"D{raw_pin}"
+              hw_instances.append({
+                  "instance_id": w.label_name,
+                  "sensor_type": hw_sensor_type,
+                  "port": pin_str, 
+                  "sample_ms": 1000 if hw_sensor_type == "MQ_ANALOG" else 2000
+              })
+
+        # 1. Pesan untuk UI Web Dashboard
+        msg_relay = json.dumps({"type": "runtime_list", "from": "server", "to": "all", "payload": {"relay": relay_items}})
+        msg_sensor = json.dumps({"type": "runtime_sensor_manifest", "from": "server", "to": "all", "payload": {"sensor_pages": sensor_pages}})
+        
+        # 2. SSoT Manifest Resmi untuk ESP32 Main Panel (Sesuai Permintaan Fajar)
+        deploy_manifest = json.dumps({
+            "type": "deploy_manifest",
+            "target": "main_panel_01",
+            "version": 1,
+            "slave_id": 1,
+            "instances": hw_instances
         })
 
+        # Broadcast via WebSocket
         for d_id, ws in list(connected_devices.items()):
           if d_id.startswith("pager"):
             asyncio.run_coroutine_threadsafe(ws.send(msg_relay), WS_LOOP)
             asyncio.run_coroutine_threadsafe(ws.send(msg_sensor), WS_LOOP)
-        print("[SERVER] ⚡ Layout disimpan! Live Reload: Relay & Sensor Manifest di-push ke Pager.")
+          elif d_id.startswith("main_panel") or d_id.startswith("panel"):
+            # Tembakkan ke Hardware Fajar
+            asyncio.run_coroutine_threadsafe(ws.send(deploy_manifest), WS_LOOP)
+            
+        print("[SERVER] ⚡ Layout disimpan! Manifest dikirim ke Main Panel.")
+        # Cetak juga ke terminal agar Anda bisa lihat sebelum dikirim
+        print(f"  ↳ Payload: {deploy_manifest}")
     except Exception as e:
-      print(f"[SERVER] ⚠️ Gagal push live reload ke pager: {e}")
+      print(f"[SERVER] ⚠️ Gagal push live reload/manifest: {e}")
     # =====================================================================
 
     return jsonify({"status": "success", "message": "Perubahan Studio berhasil disimpan ke SQLite!"}), 200
@@ -595,22 +627,74 @@ def handle_web_ack(data):
 
 @socketio.on('control_gate')
 def handle_gate_control(data):
-  action = data.get('action', 'TOGGLE')
-  channel = data.get('channel', 'relay_7')
-  payload_to_esp = json.dumps({"command": "RELAY_CONTROL", "pin": channel, "state": action})
-  global WS_LOOP
-  if WS_LOOP and WS_LOOP.is_running() and connected_devices:
-    for d_id, ws in list(connected_devices.items()):
-      if d_id != "server": asyncio.run_coroutine_threadsafe(ws.send(payload_to_esp), WS_LOOP)
+    handle_general_relay(data)
 
 @socketio.on('control_relay')
 def handle_general_relay(data):
-  device = data.get('device', 'unknown')
-  state = data.get('state', 'TOGGLE')
-  payload_to_esp = json.dumps({"command": "RELAY_CONTROL", "pin": device, "state": state})
-  global WS_LOOP
-  if WS_LOOP and WS_LOOP.is_running() and connected_devices:
-    for d_id, ws in list(connected_devices.items()): asyncio.run_coroutine_threadsafe(ws.send(payload_to_esp), WS_LOOP)
+    device = data.get('device', 'unknown') # Contoh: 'relay_1'
+    state_action = data.get('state', 'TOGGLE')
+    
+    # Ekstrak nomor channel dari string
+    try:
+        channel = int(device.split('_')[1])
+    except:
+        channel = 0
+
+    global virtual_state
+    if state_action == 'TOGGLE':
+        current_state = virtual_state["relay"][channel]
+        new_state = not current_state
+    else:
+        new_state = bool(state_action)
+
+    # 1. Update State Internal Server & Sinkronkan ke Web UI
+    virtual_state["relay"][channel] = new_state
+    socketio.emit('update_status', get_web_payload(virtual_state))
+
+    # 2. Cari nama variabel (label_name) dari database untuk Pager
+    var_name = f"relay_{channel}" # Fallback
+    with app.app_context():
+        proj = Project.query.first()
+        if proj:
+            widgets = WidgetNode.query.filter_by(project_id=proj.id).all()
+            for w in widgets:
+                # Cari widget mana yang menggunakan channel ini
+                if w.mapping and w.mapping.channel_index == channel:
+                    var_name = w.label_name
+                    break
+
+    # 3. Rakit Payload untuk Pager (UI Aplikasi Mobile/Pager)
+    msg_to_pager = json.dumps({
+        "type": "status_update", 
+        "from": "server", 
+        "to": "all",
+        "payload": {"variable": var_name, "value": new_state}
+    })
+
+    # 4. Rakit Payload untuk Main Panel ESP32 Fajar (Hardware)
+    payload_to_esp = json.dumps({
+        "type": "hardware_command",
+        "target": "main_panel_01",
+        "payload": {
+            "slave_id": 1,
+            "module_type": "RELAY_8CH",
+            "channel": channel,
+            "state": new_state
+        }
+    })
+
+    # 5. Tembakkan ke Hardware & Pager via Raw WebSocket
+    global WS_LOOP
+    if WS_LOOP and WS_LOOP.is_running() and connected_devices:
+        for d_id, ws in list(connected_devices.items()):
+            # Kirim perintah fisik ke ESP32
+            if d_id.startswith("main_panel") or d_id.startswith("panel"):
+                asyncio.run_coroutine_threadsafe(ws.send(payload_to_esp), WS_LOOP)
+                print(f"\033[95m[OUTBOUND] 🕹️ Command dikirim ke {d_id} | Channel {channel} = {'ON' if new_state else 'OFF'}\033[0m")
+            
+            # Kirim update visual ke Pager
+            elif d_id.startswith("pager"):
+                asyncio.run_coroutine_threadsafe(ws.send(msg_to_pager), WS_LOOP)
 
 # ──────────────────────────────────────────────
 # Router WebSocket SCS v1.0 & Task
@@ -629,8 +713,14 @@ async def router_handler(websocket, *args):
         target = data.get("to", "unknown")
         payload = data.get("payload", {})
 
-        print(f"\n[WS-8765] 📨 INCOMING dari [{sender}] -> ke [{target}] | Tipe: {msg_type.upper()}")
-        if payload: print(f"         ↳ Payload: {json.dumps(payload)}")
+        if sender != "unknown" and sender not in connected_devices:
+            device_id = sender
+            connected_devices[device_id] = websocket
+            print(f"\033[92m[WS-8765] 🔗 Auto-Register jalur koneksi: {device_id}\033[0m")
+
+        if msg_type.lower() not in ["field_data", "heartbeat", "slave_heartbeat"]:
+            print(f"\n[WS-8765] 📨 INCOMING dari [{sender}] -> ke [{target}] | Tipe: {msg_type.upper()}")
+            if payload: print(f"         ↳ Payload: {json.dumps(payload)}")
 
         if msg_type == "hello":
           device_id = sender
@@ -678,59 +768,61 @@ async def router_handler(websocket, *args):
         # =========================================================
         # 1. INBOUND / ETL EXTRACTION & LOAD (Dari Main Panel)
         # =========================================================
-        elif msg_type == "FIELD_DATA" and target == "server":
-            print(f"[WS-8765] 📡 Menerjemahkan FIELD_DATA dari {sender}")
-            
-            # 1. Pastikan Virtual Dummy dimatikan
+        elif msg_type.lower() == "field_data" or target == "unknown":
+
             if not REAL_PANEL_CONNECTED:
                 REAL_PANEL_CONNECTED = True
-                print("[WS-8765] ⚡ HARDWARE PANEL ASLI TERHUBUNG! (Via FIELD_DATA)")
-
-            slave_id = payload.get("slave_id")
-            sensor_type = payload.get("sensor_type")
-            values = payload.get("values", {})
-            page_id = payload.get("page_id")
-
-            print(f"\n[MIDDLEWARE] 📥 ETL Ekstraksi dari Slave {slave_id} ({sensor_type})")
+                print("\033[93m[SERVER] ⚡ HARDWARE ASLI TERDETEKSI! Mematikan Virtual Panel...\033[0m")
+            inner_type = payload.get("type", "unknown")
+            slave_id = payload.get("slave_id", "N/A")
             
-            updated_variables = {}
-
-            # Proses Transformasi & Mapping ke Runtime Variable
-            for key, val in values.items():
-                binding_key = (slave_id, sensor_type, key)
+            # A. Tangani Handshake "Hello"
+            if inner_type == "hello":
+                slave_uid = payload.get("slave_uid", "Unknown")
+                fw_version = payload.get("fw", "1.0.0")
+                print(f"[MIDDLEWARE] 👋 Main Panel / Slave Terdaftar: {slave_uid} (FW: {fw_version})")
+                continue
                 
-                # Jika sensor terdaftar di tabel binding
-                if binding_key in INBOUND_BINDING:
-                    var_name = INBOUND_BINDING[binding_key]
+            # B. Tangani "Heartbeat" (Gunakan warna abu-abu agar tidak mencolok)
+            elif inner_type == "heartbeat":
+                print(f"\033[90m[WS] 💓 Heartbeat dari Slave {slave_id} (Online)\033[0m")
+                continue
+                
+            # C. Tangani Data Sensor (etl_data) dengan Warna Cyan dan Hijau
+            elif inner_type == "etl_data":
+                instance_id = payload.get("instance_id", "unknown_instance")
+                sensor_type = payload.get("sensor_type", "UNKNOWN")
+                values = payload.get("payload", {})
+                
+                print(f"\033[96m[ETL] 📥 Slave {slave_id} | Instance: {instance_id} ({sensor_type})\033[0m")
+                
+                for key, val in values.items():
+                    var_name = f"{instance_id}_{key}"
                     RUNTIME_REGISTRY[var_name] = val
-                    updated_variables[var_name] = val
-                    print(f"  ↳ Mapping berhasil: {var_name} = {val}")
-                else:
-                    print(f"  ↳ Mengabaikan data tidak terdaftar: {key}")
+                    print(f"   ├─ \033[92m{var_name}\033[0m = {val}")
 
-            # 2. Terjemahkan dan Forward ke ESP32 Pager
-            pager_msg = json.dumps({
-                "type": "sensor_update",
-                "from": "server",
-                "to": "all",
-                "payload": {
-                    "page_id": page_id,
-                    "data": values
-                }
-            })
-            for d_id, ws in list(connected_devices.items()):
-                if d_id.startswith("pager"):
-                    try: await ws.send(pager_msg)
-                    except: pass
-            
-            # 3. Sinkronisasi ke Web Dashboard (virtual_state)
-            if "temperature" in values:
-                virtual_state["environment"]["temperature"] = values["temperature"]
-            if "gas_ppm" in values:
-                virtual_state["environment"]["gas_ppm"] = values["gas_ppm"]
+                # 2. Sinkronisasi ke Web Dashboard HMI
+                if "temperature" in values:
+                    virtual_state["environment"]["temperature"] = values["temperature"]
+                if "humidity" in values:
+                    virtual_state["environment"]["humidity"] = values["humidity"]
                 
-            last_known_status = virtual_state
-            socketio.emit("update_status", get_web_payload(last_known_status))
+                # --- PERBAIKAN SENSOR GAS ---
+                # Tangkap dari key "raw" (kiriman ESP32) atau "gas_ppm"
+                if "raw" in values:
+                    virtual_state["environment"]["gas_ppm"] = values["raw"]
+                elif "gas_ppm" in values:
+                    virtual_state["environment"]["gas_ppm"] = values["gas_ppm"]
+                # ----------------------------
+                
+                # (Opsional) Jika sensor daya / PZEM
+                if "voltage" in values:
+                    virtual_state["power"]["voltage"] = values["voltage"]
+                if "power" in values:
+                    virtual_state["power"]["power"] = values["power"]
+                    
+                last_known_status = virtual_state
+                socketio.emit("update_status", get_web_payload(last_known_status))
 
         # =========================================================
         # 2. OUTBOUND / COMMAND DISPATCHER (Dari Pager / ST Engine)
