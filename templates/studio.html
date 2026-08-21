@@ -240,6 +240,7 @@
                 mapping: {
                     channel_index: Number.isFinite(Number(mapping.channel_index)) ? Number(mapping.channel_index) : index,
                     gpio_pin: Number.isFinite(Number(mapping.gpio_pin)) ? Number(mapping.gpio_pin) : pins[index % pins.length],
+                    active_low: mapping.active_low === true || mapping.active_low === 'true'
                 },
             };
         }
@@ -322,14 +323,12 @@
           const y = ((event.clientY - rect.top) / rect.height) * 100;
           if (x < 0 || x > 100 || y < 0 || y > 100) return;
 
-          // PROMPT 1: Nama Perangkat
           const name = window.prompt(
               '1. Masukkan Nama Perangkat (cth: lampu_utama, exhaust, cctv):',
               `${label}_${currentWidgets.length + 1}`
           );
           if (!name) return;
 
-          // PROMPT 2: Nama Ruangan / Zona
           const zone = window.prompt(
               '2. Masukkan Nama Ruangan / Zona (cth: Living Room, Gudang A, Lab Komputer):',
               'Area Umum'
@@ -356,6 +355,7 @@
             mapping: {
               channel_index: currentWidgets.length % getMaxChannels(),
               gpio_pin: pins[currentWidgets.length % pins.length] || 23,
+              active_low: false
             },
           });
 
@@ -467,14 +467,12 @@
                 const row = document.createElement('div');
                 row.className = 'wiring-row';
 
-                // Tampilkan Nama Perangkat & Zona [Area]
                 const name = document.createElement('div');
                 name.className = 'wiring-name';
                 name.title = `Klik ganda untuk ubah zona — Perangkat: ${widget.label_name} | Zona: ${widget.zone_name}`;
                 name.style.cursor = 'pointer';
                 name.innerHTML = `${widget.icon} <strong>${widget.label_name}</strong> <br><small style="color: #639aff;">[ ${widget.zone_name} ]</small>`;
                 
-                // Event Klik: Ubah zona sewaktu-waktu dari panel wiring
                 name.addEventListener('dblclick', () => {
                     const newZone = window.prompt(
                         `Ubah Nama Zona / Ruangan untuk perangkat "${widget.label_name}":`, 
@@ -507,7 +505,28 @@
                 });
                 pinSelect.addEventListener('change', () => updateMapping(widget.id, 'pin', pinSelect.value));
 
-                controls.append(channelSelect, pinSelect);
+                // ==== LOGIKA ACTIVE LOW & FILTER CHANNEL ====
+                const isOutput = ['LAMP_INDICATOR', 'PUMP_CONTROL', 'GATE_CONTROL', 'FAN_CONTROL', 'SMART_PLUG'].includes(widget.widget_type);
+                
+                if (isOutput) {
+                    controls.style.gridTemplateColumns = '1fr 1fr 1fr'; 
+                    
+                    const triggerSelect = document.createElement('select');
+                    triggerSelect.className = 'wiring-select';
+                    triggerSelect.setAttribute('aria-label', `Logic ${widget.label_name}`);
+                    
+                    triggerSelect.add(new Option('HIGH (1)', 'false', false, widget.mapping.active_low === false));
+                    triggerSelect.add(new Option('LOW (0)', 'true', false, widget.mapping.active_low === true));
+                    
+                    triggerSelect.addEventListener('change', () => updateMapping(widget.id, 'logic', triggerSelect.value));
+                    
+                    // Untuk aktuator: Tampilkan CH, GPIO, dan Logic
+                    controls.append(channelSelect, pinSelect, triggerSelect);
+                } else {
+                    // Untuk sensor: Jadikan 1 kolom penuh dan HANYA tampilkan GPIO
+                    controls.style.gridTemplateColumns = '1fr'; 
+                    controls.append(pinSelect); 
+                }
 
                 const deleteButton = document.createElement('button');
                 deleteButton.type = 'button';
@@ -526,6 +545,7 @@
             if (!widget) return;
             if (type === 'ch') widget.mapping.channel_index = Number.parseInt(value, 10);
             if (type === 'pin') widget.mapping.gpio_pin = Number.parseInt(value, 10);
+            if (type === 'logic') widget.mapping.active_low = (value === 'true');
         }
 
         function deleteWidget(id) {
@@ -551,6 +571,7 @@
                         channel_index: widget.mapping.channel_index,
                         gpio_pin: widget.mapping.gpio_pin,
                         array_order: index,
+                        active_low: widget.mapping.active_low
                     },
                 })),
             };
@@ -561,7 +582,7 @@
             preview.textContent = 'Menyinkronkan layout dan wiring ke SQLite...';
 
             try {
-                const response = await fetch(`/api/save_studio/{{ project.id }}`, {
+                const response = await fetch(`/api/save_studio/1`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(buildPayload()),
@@ -601,7 +622,7 @@
             if (!file) return;
 
             const customName = window.prompt(
-                'Masukkan Nama/Label untuk denah baru ini (cth: Lantai 2, Ruang Produksi, Gudang A):',
+                'Masukkan Nama/Label untuk denah baru ini:',
                 file.name.split('.')[0] || 'Denah Baru'
             );
             if (customName === null) {
@@ -619,7 +640,7 @@
             btn.disabled = true;
 
             try {
-                const response = await fetch(`/api/upload_denah/{{ project.id }}`, {
+                const response = await fetch(`/api/upload_denah/1`, {
                     method: 'POST',
                     body: formData
                 });
@@ -634,7 +655,7 @@
                 const opt = new Option(`📁 ${cleanLabel} (Aktif)`, result.url, true, true);
                 select.add(opt);
 
-                alert(`✓ Denah "${cleanLabel}" berhasil diunggah dan diaktifkan!`);
+                alert(`✓ Denah "${cleanLabel}" berhasil diunggah!`);
             } catch (error) {
                 alert(`✕ Error: ${error.message}`);
             } finally {
@@ -649,15 +670,15 @@
             const currentVal = select.value;
 
             if (currentVal === '/static/images/denah_rumah.png') {
-                alert('Denah saat ini sudah merupakan denah default sistem.');
+                alert('Denah saat ini sudah merupakan denah default.');
                 return;
             }
 
-            const confirmDel = window.confirm('Apakah Anda yakin ingin menghapus denah kustom ini dan kembali ke denah default?');
+            const confirmDel = window.confirm('Hapus denah kustom ini dan kembali ke default?');
             if (!confirmDel) return;
 
             try {
-                const response = await fetch(`/api/delete_denah/{{ project.id }}`, {
+                const response = await fetch(`/api/delete_denah/1`, {
                     method: 'DELETE'
                 });
                 const result = await response.json();
@@ -672,8 +693,6 @@
                     }
                 }
                 select.value = result.url;
-
-                alert('✓ Denah kustom berhasil dihapus. Denah dikembalikan ke default.');
             } catch (error) {
                 alert(`✕ Error: ${error.message}`);
             }

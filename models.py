@@ -98,4 +98,7 @@ class IOMapping(db.Model):
   )
   channel_index = db.Column(db.Integer, nullable=False)
   gpio_pin = db.Column(db.Integer, nullable=False)
-  array_order = db.Column(db.Integer, nullable=False)
+  active_low = db.Column(db.Boolean, default=False)
+  array_order = db.Column(db.Integer, default=0)
+
+  
