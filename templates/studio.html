@@ -523,9 +523,14 @@
                     // Untuk aktuator: Tampilkan CH, GPIO, dan Logic
                     controls.append(channelSelect, pinSelect, triggerSelect);
                 } else {
-                    // Untuk sensor: Jadikan 1 kolom penuh dan HANYA tampilkan GPIO
-                    controls.style.gridTemplateColumns = '1fr'; 
-                    controls.append(pinSelect); 
+                    // Kembalikan ke 2 kolom agar ukuran konsisten
+                    controls.style.gridTemplateColumns = '1fr 1fr'; 
+                    
+                    // Buat elemen kosong sebagai pengganjal di sebelah kiri
+                    const emptySpacer = document.createElement('div');
+                    
+                    // Letakkan pengganjal, lalu dropdown GPIO di sebelahnya
+                    controls.append(emptySpacer, pinSelect); 
                 }
 
                 const deleteButton = document.createElement('button');

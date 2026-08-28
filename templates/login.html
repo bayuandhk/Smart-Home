@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#071426">
+    <title>Authentication — Smart Home HMI</title>
+    <!-- Memanggil CSS utama Anda -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <style>
+        /* Gaya khusus (lokal) agar form login berada di tengah layar */
+        .login-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            padding: 45px 35px;
+            text-align: center;
+            /* Menggunakan gaya panel-card dari style.css Anda */
+            box-shadow: 0 25px 65px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .login-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 35px;
+        }
+        .login-logo {
+            width: 72px;
+            height: 72px;
+            display: grid;
+            place-items: center;
+            border-radius: 20px;
+            font-family: var(--font-mono);
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #fff;
+            background: linear-gradient(145deg, #1766e3, var(--primary) 58%, #07357f);
+            border: 1px solid rgba(139, 191, 255, 0.38);
+            box-shadow: var(--shadow-blue);
+        }
+        .login-title {
+            font-size: 1.3rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: var(--text);
+        }
+        .login-subtitle {
+            margin-top: 5px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--cyan);
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            text-align: left;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .form-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--text-3);
+        }
+        .form-input {
+            min-height: 48px;
+            font-size: 0.95rem;
+            padding: 0 16px;
+        }
+        .login-btn {
+            margin-top: 15px;
+            min-height: 52px;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+        }
+        .login-error {
+            margin-top: 25px;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #ff9ca6;
+            background: var(--red-soft);
+            border: 1px solid rgba(255, 82, 99, 0.25);
+            animation: shake 0.4s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+    </style>
+</head>
+<body class="login-page">
+
+    <!-- panel-card adalah class bawaan dari style.css Anda -->
+    <div class="panel-card login-card">
+        
+        <div class="login-brand">
+            <div class="login-logo">SH</div>
+            <div>
+                <div class="login-title">HMI Control System</div>
+                <div class="login-subtitle">Restricted Access</div>
+            </div>
+        </div>
+
+        <!-- Form mengarah ke rute /login yang baru kita buat di app.py -->
+        <form class="login-form" method="POST" action="/login">
+            <div class="form-group">
+                <label class="form-label" for="username">OPERATOR ID</label>
+                <!-- form-input memanggil class styling input dari style.css -->
+                <input type="text" id="username" name="username" class="form-input" placeholder="Masukkan ID" required autocomplete="off" autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" for="password">ACCESS KEY</label>
+                <input type="password" id="password" name="password" class="form-input" placeholder="Masukkan sandi" required>
+            </div>
+
+            <!-- btn-action memanggil tombol biru gradasi dari style.css -->
+            <button type="submit" class="btn-action login-btn">
+                AUTHORIZE ACCESS 🔒
+            </button>
+        </form>
+
+        <!-- Blok ini hanya muncul jika Flask mengirimkan variabel 'error' -->
+        {% if error %}
+        <div class="login-error">
+            ⚠ {{ error }}
+        </div>
+        {% endif %}
+
+    </div>
+
+</body>
+</html>

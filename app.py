@@ -11,6 +11,8 @@ import threading
 import time
 from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from functools import wraps
 from models import (
     ControllerBoard,
     FunctionBlock,
@@ -28,7 +30,17 @@ WS_LOOP = None
 # Inisialisasi Aplikasi Flask & Database SQLite
 # ──────────────────────────────────────────────
 app = Flask(__name__)
+app.secret_key = 'Smart_Home_FieldFlow'
 app.config['SECRET_KEY'] = 'smart-home-pbl-secret-key'
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Jika tidak ada sesi 'logged_in', lempar paksa ke halaman login
+        if 'logged_in' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(
@@ -107,6 +119,31 @@ OUTBOUND_BINDING = {
     "gate_2": {"slave_id": 2, "type": "relay", "channel": 1},  # Sesuaikan channel
     "lampu_10": {"slave_id": 2, "type": "relay", "channel": 3} # Sesuaikan channel
 }
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    # Jika pengguna sudah login, langsung arahkan ke Dashboard
+    if 'logged_in' in session:
+        return redirect(url_for('dashboard')) # Pastikan fungsi route '/' Anda bernama 'dashboard' atau sesuaikan namanya
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        # Kredensial sementara (Admin)
+        if username == 'admin' and password == 'admin':
+            session['logged_in'] = True
+            session['user'] = username
+            return redirect(url_for('dashboard'))
+        else:
+            return render_template('login.html', error="Username atau password salah!")
+            
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear() # Hapus semua sesi
+    return redirect(url_for('login'))
 
 # ──────────────────────────────────────────────
 # Pengepakan Data untuk Web UI & Lokasi
@@ -484,6 +521,7 @@ def generate_project_json(project_id):
     return jsonify({"status": "error", "message": f"Gagal mengompilasi JSON: {str(e)}"}), 500
 
 @app.route('/studio/<int:project_id>')
+@login_required
 def open_studio(project_id):
   proj = Project.query.get_or_404(project_id)
   board = ControllerBoard.query.filter_by(project_id=proj.id).first()
@@ -585,7 +623,8 @@ def seed_test_project():
     return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/')
-def index():
+@login_required
+def dashboard():
   proj = Project.query.first()
   widgets = WidgetNode.query.filter_by(project_id=proj.id).all() if proj else []
 
@@ -881,14 +920,16 @@ async def router_handler(websocket, *args):
             # 1. Update Runtime Registry agar state tersinkronisasi
             RUNTIME_REGISTRY[var_name] = target_val
 
+            channel_idx = None # <-- Menyiapkan variabel penampung channel
+
             # Update Virtual State untuk sinkronisasi Web HMI
             with app.app_context():
                 proj = Project.query.first()
                 w = WidgetNode.query.filter_by(label_name=var_name).first() if proj else None
                 if w and w.mapping:
-                    idx = w.mapping.channel_index
-                    if idx < len(virtual_state["relay"]): 
-                        virtual_state["relay"][idx] = target_val
+                    channel_idx = w.mapping.channel_index # <-- Ambil channel dari SQLite
+                    if channel_idx < len(virtual_state["relay"]): 
+                        virtual_state["relay"][channel_idx] = target_val
                 else:
                     names = ["ruang_tamu", "kamar", "dapur", "garasi"]
                     if var_name in names: virtual_state["relay"][names.index(var_name)] = target_val
@@ -906,33 +947,30 @@ async def router_handler(websocket, *args):
                 except: pass
             print(f"[WS-8765] ⚡ [POC EVENT-PUSH] Disiarkan status_update: {var_name}={target_val}")
 
-            # 2. Cek tabel Outbound Binding
-            if var_name in OUTBOUND_BINDING:
-                target_hw = OUTBOUND_BINDING[var_name]
-
-                # Merakit JSON sesuai standar instruksi aktuator fisik
+            # 2. THE MISSING LINK FIX: Dispatch Dinamis ke Hardware
+            if channel_idx is not None:
+                # Merakit JSON sesuai standar instruksi aktuator fisik di Slave 1
                 cmd_payload = json.dumps({
-                    "type": "command",
-                    "target": {
-                        "slave_id": target_hw["slave_id"]
-                    },
+                    "type": "hardware_command",
+                    "target": "main_panel_01",
                     "payload": {
-                        "type": target_hw["type"],
-                        "channel": target_hw["channel"],
-                        "value": target_val
+                        "slave_id": 1,
+                        "module_type": "RELAY_8CH",
+                        "channel": channel_idx,
+                        "state": target_val
                     }
                 })
 
-                # Dispatch (Kirim) perintah ke Main Panel
+                # Dispatch (Kirim) perintah ke ESP32
                 for d_id, ws in list(connected_devices.items()):
                     if d_id.startswith("main_panel") or d_id.startswith("panel"):
                         try:
                             await ws.send(cmd_payload)
-                            print(f"  ↳ 📤 Dispatch ke Hardware: Slave {target_hw['slave_id']}, Ch {target_hw['channel']}")
+                            print(f"  ↳ 📤 Dispatch ke Hardware: Slave 1, Ch {channel_idx}")
                         except:
                             print(f"  ↳ ❌ Gagal Dispatch: Main Panel terputus!")
             else:
-                print(f"  ↳ ⚠️ Command diabaikan: Variabel '{var_name}' tidak terikat ke hardware fisik.")
+                print(f"  ↳ ⚠️ Command diabaikan: Variabel '{var_name}' belum di-mapping di SH Studio.")
 
 
         elif target == "all":
@@ -1026,8 +1064,8 @@ async def router_handler(websocket, *args):
 async def run_ws_server():
   global WS_LOOP
   WS_LOOP = asyncio.get_running_loop()
-  print("[SERVER] SCS v1.0 Router siap di ws://192.168.88.254:8765")
-  await websockets.serve(router_handler, "192.168.88.254", 8765, ping_interval=None)
+  print("[SERVER] SCS v1.0 Router siap di ws://0.0.0.0:8765")
+  await websockets.serve(router_handler, "0.0.0.0", 8765, ping_interval=None)
   asyncio.create_task(virtual_panel_task())
   await asyncio.Future()
 
@@ -1039,4 +1077,4 @@ if __name__ == '__main__':
   print("=" * 60)
   print("  Smart Home Router SCS v1.0 + Virtual Panel")
   print("=" * 60)
-  socketio.run(app, host='192.168.88.254', port=5000, debug=False, use_reloader=False)
+  socketio.run(app, host='0.0.0.0', port=5000, debug=False, use_reloader=False)

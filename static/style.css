@@ -1623,10 +1623,14 @@ input:focus-visible {
 }
 
 .wiring-row {
-    padding: 9px;
+    padding: 12px;
     display: grid;
-    grid-template-columns: minmax(80px, 1fr) minmax(145px, auto) 29px;
-    gap: 7px;
+    /* KUNCI DESAIN: Membagi area menjadi 2 baris terstruktur */
+    grid-template-areas:
+        "name delete"
+        "controls controls";
+    grid-template-columns: 1fr 29px;
+    gap: 10px 14px;
     align-items: center;
     border-radius: 10px;
     background: rgba(7, 19, 38, 0.74);
@@ -1634,6 +1638,7 @@ input:focus-visible {
 }
 
 .wiring-name {
+    grid-area: name;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1642,11 +1647,27 @@ input:focus-visible {
     color: var(--text-2);
 }
 
-.wiring-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.wiring-select { min-height: 30px; margin-top: 0; padding: 0 6px; font-family: var(--font-mono); font-size: 0.58rem; }
-.wiring-select.gpio { color: var(--cyan); }
+.wiring-controls {
+    grid-area: controls;
+    display: grid;
+    gap: 7px;
+    /* grid-template-columns dihapus karena sudah diatur otomatis oleh JavaScript */
+}
+
+.wiring-select {
+    min-height: 32px;
+    margin-top: 0;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+}
+
+.wiring-select.gpio { 
+    color: var(--cyan); 
+}
 
 .btn-delete {
+    grid-area: delete;
     width: 29px;
     height: 29px;
     display: grid;
@@ -1660,7 +1681,11 @@ input:focus-visible {
     transition: background var(--transition), color var(--transition), transform var(--transition);
 }
 
-.btn-delete:hover { color: #fff; background: var(--red); transform: scale(1.04); }
+.btn-delete:hover { 
+    color: #fff; 
+    background: var(--red); 
+    transform: scale(1.04); 
+}
 
 .empty-wiring {
     padding: 22px 12px;
