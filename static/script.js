@@ -125,7 +125,7 @@
                             document.querySelector(`[title="${w.label_name}"]`) ||
                             document.querySelector(`[title="${w.label_name.toUpperCase()}"]`);
 
-            if (w.widget_type === 'LAMP_INDICATOR' || w.widget_type === 'PUMP_CONTROL') {
+            if (['LAMP_INDICATOR', 'PUMP_CONTROL', 'FAN_CONTROL', 'SMART_PLUG'].includes(w.widget_type)) {
                 const ch = w.mapping ? w.mapping.channel_index : 0;
                 const isOn = Boolean(relays[`relay_${ch}`]);
 

@@ -28,6 +28,9 @@ class Project(db.Model):
   widgets = db.relationship(
       'WidgetNode', backref='project', lazy=True, cascade="all, delete-orphan"
   )
+  automation_rules = db.relationship(
+      'AutomationRule', backref='project', lazy=True, cascade="all, delete-orphan"
+  )
 
 
 class ControllerBoard(db.Model):
@@ -100,5 +103,29 @@ class IOMapping(db.Model):
   gpio_pin = db.Column(db.Integer, nullable=False)
   active_low = db.Column(db.Boolean, default=False)
   array_order = db.Column(db.Integer, default=0)
+
+class AutomationRule(db.Model):
+  __tablename__ = 'automation_rules'
+
+  id = db.Column(db.Integer, primary_key=True)
+  project_id = db.Column(
+      db.Integer, db.ForeignKey('projects.id'), nullable=False
+  )
+  rule_name = db.Column(db.String(100), nullable=False)
+  
+  # Kondisi (IF)
+  condition_widget = db.Column(db.String(50), nullable=False) # misal: "temp_2"
+  condition_operator = db.Column(db.String(10), nullable=False) # ">", "<", "=="
+  condition_value = db.Column(db.Float, nullable=False) # misal: 30.5
+  
+  # Aksi (THEN)
+  action_widget = db.Column(db.String(50), nullable=False) # misal: "exhaust"
+  action_state = db.Column(db.Boolean, nullable=False) # True (ON) / False (OFF)
+  
+  # Status Eksekusi
+  is_active = db.Column(db.Boolean, default=True)
+  
+  # Untuk mengunci state (Anti-Spam) agar tidak mengirim perintah berulang kali
+  last_triggered_state = db.Column(db.Boolean, nullable=True, default=None)
 
   

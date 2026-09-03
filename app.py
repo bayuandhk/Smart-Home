@@ -20,6 +20,7 @@ from models import (
     Project,
     WidgetNode,
     db,
+    AutomationRule
 )
 from werkzeug.utils import secure_filename
 import websockets
@@ -119,6 +120,39 @@ OUTBOUND_BINDING = {
     "gate_2": {"slave_id": 2, "type": "relay", "channel": 1},  # Sesuaikan channel
     "lampu_10": {"slave_id": 2, "type": "relay", "channel": 3} # Sesuaikan channel
 }
+
+@app.route('/api/automation/<int:project_id>', methods=['POST'])
+@login_required
+def add_automation_rule(project_id):
+    data = request.json
+    try:
+        new_rule = AutomationRule(
+            project_id=project_id,
+            rule_name=data['rule_name'],
+            condition_widget=data['condition_widget'],
+            condition_operator=data['condition_operator'],
+            condition_value=data['condition_value'],
+            action_widget=data['action_widget'],
+            action_state=data['action_state']
+        )
+        db.session.add(new_rule)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Aturan automasi ditambahkan."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/automation/delete/<int:rule_id>', methods=['DELETE'])
+@login_required
+def delete_automation_rule(rule_id):
+    try:
+        rule = AutomationRule.query.get_or_404(rule_id)
+        db.session.delete(rule)
+        db.session.commit()
+        return jsonify({"status": "success", "message": "Aturan berhasil dihapus."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -263,28 +297,28 @@ async def virtual_panel_task():
         page_id = f"env_{w.label_name}"
         data_payload = {}
         
-        # Template berdasarkan tipe sensor
+        # --- PENDEKATAN DINAMIS (TANPA HARDCODE KAKU) ---
+        # 1. Jika sensor sudah dikenali secara khusus di simulasi:
         if w.widget_type == 'SENSOR_TEMP':
-            data_payload = {
-                "temperature": virtual_state["environment"]["temperature"],
-                "humidity": random.randint(55, 75)
-            }
-        elif w.widget_type == 'SENSOR_GAS':
-            data_payload = {
-                "gas_ppm": virtual_state["environment"]["gas_ppm"]
-            }
-        elif w.widget_type in ['SENSOR_PIR', 'SENSOR_FIRE']:
-            data_payload = {
-                "status": random.choice(["AMAN", "ALARM"])
-            }
+            primary_val = virtual_state["environment"]["temperature"]
+            data_payload = {"temperature": primary_val, "humidity": random.randint(55, 75)}
         elif w.widget_type == 'SENSOR_POWER':
-            data_payload = {
-                "voltage": virtual_state["power"]["voltage"],
-                "current": virtual_state["power"]["current"],
-                "power": virtual_state["power"]["power"],
-                "energy": virtual_state["power"]["energy"]
-            }
-        # =========================================================
+            primary_val = virtual_state["power"]["power"]
+            data_payload = {"voltage": virtual_state["power"]["voltage"], "power": primary_val}
+            
+        # 2. DYNAMIC FALLBACK: Untuk SEMUA sensor jenis baru di masa depan!
+        else:
+            # Cek apakah nama tipe sensornya berbau digital (PIR/FIRE/DOOR/SMOKE dll)
+            if any(keyword in w.widget_type for keyword in ['PIR', 'FIRE', 'DOOR', 'SMOKE']):
+                primary_val = random.choice([0, 1])
+                data_payload = {"status": "ALARM" if primary_val else "AMAN"}
+            else:
+                # Jika bukan, anggap sensor analog (misal: SENSOR_CAHAYA, SENSOR_AIR)
+                primary_val = round(random.uniform(10.0, 99.0), 1)
+                data_payload = {"value": primary_val}
+
+        # 3. Injeksi Dinamis ke Memori ST (Apapun nama labelnya, otomatis masuk!)
+        RUNTIME_REGISTRY[w.label_name] = primary_val
 
         update_msg = json.dumps({
             "type": "sensor_update",
@@ -296,13 +330,94 @@ async def virtual_panel_task():
             }
         })
         
-        # Tembakkan Event Update ke Pager
         for d_id, ws in list(connected_devices.items()):
             if d_id.startswith("pager"):
-                try:
-                    await asyncio.run_coroutine_threadsafe(ws.send(update_msg), WS_LOOP)
-                except:
-                    pass
+                try: asyncio.run_coroutine_threadsafe(ws.send(update_msg), WS_LOOP)
+                except: pass
+
+# ──────────────────────────────────────────────
+# Task: ST Engine - Automation Scan Cycle
+# ──────────────────────────────────────────────
+async def st_engine_task():
+    global WS_LOOP, virtual_state
+    print("[ST ENGINE] Aktif. Memantau aturan automasi setiap 1 detik...")
+    
+    while True:
+        await asyncio.sleep(1) # Siklus pemindaian 1 detik
+        
+        with app.app_context():
+            # Baca semua aturan yang berstatus aktif
+            rules = AutomationRule.query.filter_by(is_active=True).all()
+            
+            for rule in rules:
+                # 1. Baca nilai sensor saat ini dari Memory Environment
+                current_val = RUNTIME_REGISTRY.get(rule.condition_widget)
+                if current_val is None:
+                    continue # Lewati jika sensor belum pernah mengirim data
+                    
+                # 2. Evaluasi Logika (IF)
+                is_met = False
+                if rule.condition_operator == '>': is_met = current_val > rule.condition_value
+                elif rule.condition_operator == '<': is_met = current_val < rule.condition_value
+                elif rule.condition_operator == '==': is_met = current_val == rule.condition_value
+                    
+                # 3. Eksekusi Aksi (THEN) dengan Anti-Spam
+                if is_met and rule.last_triggered_state != True:
+                    print(f"\n[ST ENGINE] ⚙️ Rule '{rule.rule_name}' TERPICU! ({current_val} {rule.condition_operator} {rule.condition_value})")
+                    
+                    rule.last_triggered_state = True
+                    db.session.commit()
+                    
+                    # --- EKSEKUSI HARDWARE-LEVEL (GPIO) ---
+                    try:
+                        gpio_pin = int(rule.action_widget) # Membaca angka pin GPIO (misal: 23)
+                        target_state = rule.action_state
+                        
+                        # Lakukan Reverse-Lookup untuk menyinkronkan animasi UI di Web
+                        channel_idx = None
+                        pager_var_name = f"gpio_{gpio_pin}"
+                        
+                        mapping = IOMapping.query.filter_by(gpio_pin=gpio_pin).first()
+                        if mapping:
+                            channel_idx = mapping.channel_index
+                            w = WidgetNode.query.get(mapping.widget_id)
+                            if w: pager_var_name = w.label_name
+                            
+                        # 1. Update Animasi Web Dashboard (Jika pin tersebut ada di kanvas HMI)
+                        if channel_idx is not None and channel_idx < len(virtual_state["relay"]):
+                            virtual_state["relay"][channel_idx] = target_state
+                            socketio.emit("update_status", get_web_payload(virtual_state))
+                            
+                        # 2. Dispatch Perintah Fisik Langsung ke ESP32 Fajar berdasarkan GPIO
+                        cmd_payload = json.dumps({
+                            "type": "hardware_command",
+                            "target": "main_panel_01",
+                            "payload": {
+                                "slave_id": 1,
+                                "port": f"D{gpio_pin}", # Format standar digital (D23, D22, dst)
+                                "pin": gpio_pin,        # Angka pin absolut
+                                "state": target_state
+                            }
+                        })
+                        
+                        # 3. Siarkan Payload ke Hardware & Pager Mobile
+                        for d_id, ws in list(connected_devices.items()):
+                            if d_id.startswith("main_panel") or d_id.startswith("panel"):
+                                try: asyncio.run_coroutine_threadsafe(ws.send(cmd_payload), WS_LOOP)
+                                except: pass
+                            elif d_id.startswith("pager"):
+                                event_msg = json.dumps({"type": "status_update", "from": "server", "to": "all", "payload": {"variable": pager_var_name, "value": target_state}})
+                                try: asyncio.run_coroutine_threadsafe(ws.send(event_msg), WS_LOOP)
+                                except: pass
+                                
+                    except ValueError:
+                        print(f"[ST ENGINE] ⚠️ Error: '{rule.action_widget}' bukan format GPIO yang valid.")
+
+                # 4. Reset Kunci jika kondisi kembali normal
+                elif not is_met and rule.last_triggered_state == True:
+                    print(f"[ST ENGINE] ♻️ Rule '{rule.rule_name}' KEMBALI NORMAL.")
+                    rule.last_triggered_state = False
+                    db.session.commit()
 
 # ──────────────────────────────────────────────
 # Route Persistensi & Compiler Studio
@@ -527,6 +642,7 @@ def open_studio(project_id):
   board = ControllerBoard.query.filter_by(project_id=proj.id).first()
   fb_list = FunctionBlock.query.filter_by(board_id=board.id).all() if board else []
   widgets = WidgetNode.query.filter_by(project_id=proj.id).all()
+  rules = AutomationRule.query.filter_by(project_id=proj.id).all()
 
   widgets_data = []
   for w in widgets:
@@ -556,6 +672,7 @@ def open_studio(project_id):
       'studio.html',
       project=proj, board=board, function_blocks=fb_list,
       widgets_json=json.dumps(widgets_data),
+      rules=rules
   )
 
 @app.route('/api/upload_denah/<int:project_id>', methods=['POST'])
@@ -856,6 +973,17 @@ async def router_handler(websocket, *args):
                 
                 print(f"\033[96m[ETL] 📥 Slave {slave_id} | Instance: {instance_id} ({sensor_type})\033[0m")
                 
+                # --- SUNTIKAN DINAMIS UNTUK ST ENGINE ---
+                # Apapun sensor baru yang dirakit Fajar, ambil nilai parameternya secara otomatis
+                if values:
+                    # Prioritaskan key 'raw' atau 'value' jika ada
+                    if "raw" in values:
+                        RUNTIME_REGISTRY[instance_id] = values["raw"]
+                    else:
+                        # Jika tidak ada, "rampas" nilai pertama dari dictionary JSON yang dikirim ESP32
+                        first_key = list(values.keys())[0]
+                        RUNTIME_REGISTRY[instance_id] = values[first_key]
+
                 for key, val in values.items():
                     var_name = f"{instance_id}_{key}"
                     RUNTIME_REGISTRY[var_name] = val
@@ -1065,8 +1193,9 @@ async def run_ws_server():
   global WS_LOOP
   WS_LOOP = asyncio.get_running_loop()
   print("[SERVER] SCS v1.0 Router siap di ws://0.0.0.0:8765")
-  await websockets.serve(router_handler, "0.0.0.0", 8765, ping_interval=None)
+  await websockets.serve(router_handler, "192.168.88.254", 8765, ping_interval=None)
   asyncio.create_task(virtual_panel_task())
+  asyncio.create_task(st_engine_task())
   await asyncio.Future()
 
 def start_raw_websocket_server():
@@ -1077,4 +1206,4 @@ if __name__ == '__main__':
   print("=" * 60)
   print("  Smart Home Router SCS v1.0 + Virtual Panel")
   print("=" * 60)
-  socketio.run(app, host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+  socketio.run(app, host='192.168.88.254', port=5000, debug=False, use_reloader=False)
