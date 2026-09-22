@@ -713,7 +713,7 @@ input:focus-visible {
         repeating-linear-gradient(90deg, transparent 0 5px, rgba(255, 255, 255, 0.11) 5px 6px),
         linear-gradient(145deg, #65758d, #39485f);
     border: 1px solid rgba(184, 202, 228, 0.25);
-    transition: transform 650ms cubic-bezier(.2, .9, .25, 1.2), background var(--transition), box-shadow var(--transition);
+    transition: transform 300ms cubic-bezier(.2, .9, .25, 1.1), background var(--transition), box-shadow var(--transition);
 }
 
 .overlay-gate-leaf.left { transform-origin: left center; }
@@ -1178,7 +1178,7 @@ input:focus-visible {
         repeating-linear-gradient(90deg, transparent 0 8px, rgba(255, 255, 255, 0.1) 8px 9px),
         linear-gradient(145deg, #65758d, #39485f);
     border: 1px solid rgba(184, 202, 228, 0.22);
-    transition: transform 650ms cubic-bezier(.2, .9, .25, 1.2), background var(--transition), box-shadow var(--transition);
+    transition: transform 300ms cubic-bezier(.2, .9, .25, 1.1), background var(--transition), box-shadow var(--transition);
 }
 
 .gate-leaf.left { transform-origin: left center; }
@@ -1500,8 +1500,173 @@ input:focus-visible {
 .form-select:focus,
 .wiring-select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(37, 199, 248, 0.09); }
 
-.catalog-list {
+/* Catalog Filter Tabs */
+.catalog-filter-tabs {
+    display: flex;
+    gap: 5px;
     margin-top: 10px;
+    margin-bottom: 12px;
+    padding: 3px;
+    background: rgba(3, 10, 22, 0.7);
+    border-radius: 9px;
+    border: 1px solid rgba(133, 163, 207, 0.12);
+}
+
+.catalog-filter-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 6px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-3);
+    font-size: 0.65rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.catalog-filter-btn:hover {
+    color: var(--text);
+    background: rgba(148, 177, 220, 0.08);
+}
+
+.catalog-filter-btn.active {
+    color: #fff;
+    background: var(--surface-2);
+    border-color: var(--line-blue);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.catalog-filter-btn.btn-actuator.active {
+    border-color: rgba(247, 183, 49, 0.45);
+    background: rgba(247, 183, 49, 0.14);
+    color: #ffe699;
+}
+
+.catalog-filter-btn.btn-sensor.active {
+    border-color: rgba(37, 199, 248, 0.45);
+    background: rgba(37, 199, 248, 0.14);
+    color: #bbf0ff;
+}
+
+.filter-count {
+    font-size: 0.58rem;
+    padding: 1px 5px;
+    border-radius: 99px;
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+    font-family: var(--font-mono);
+}
+
+/* Catalog Groups */
+.catalog-group {
+    margin-bottom: 14px;
+    transition: opacity var(--transition);
+}
+
+.catalog-group:last-child {
+    margin-bottom: 0;
+}
+
+.catalog-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 9px;
+    border-radius: 8px;
+    margin-bottom: 7px;
+    border-left: 3px solid transparent;
+}
+
+.catalog-group-header.actuator-header {
+    background: linear-gradient(90deg, rgba(247, 183, 49, 0.12), rgba(7, 19, 38, 0.45));
+    border-left-color: var(--amber);
+    border-top: 1px solid rgba(247, 183, 49, 0.16);
+    border-right: 1px solid rgba(247, 183, 49, 0.08);
+    border-bottom: 1px solid rgba(247, 183, 49, 0.08);
+}
+
+.catalog-group-header.sensor-header {
+    background: linear-gradient(90deg, rgba(37, 199, 248, 0.12), rgba(7, 19, 38, 0.45));
+    border-left-color: var(--cyan);
+    border-top: 1px solid rgba(37, 199, 248, 0.16);
+    border-right: 1px solid rgba(37, 199, 248, 0.08);
+    border-bottom: 1px solid rgba(37, 199, 248, 0.08);
+}
+
+.group-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.group-badge-icon {
+    font-size: 0.72rem;
+}
+
+.group-title-text {
+    font-size: 0.65rem;
+    font-weight: 750;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+}
+
+.catalog-badge {
+    font-size: 0.54rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-family: var(--font-mono);
+}
+
+.badge-actuator {
+    color: #f7b731;
+    background: rgba(247, 183, 49, 0.15);
+    border: 1px solid rgba(247, 183, 49, 0.3);
+}
+
+.badge-sensor {
+    color: #25c7f8;
+    background: rgba(37, 199, 248, 0.15);
+    border: 1px solid rgba(37, 199, 248, 0.3);
+}
+
+.catalog-comm-badge {
+    font-size: 0.52rem;
+    font-weight: 750;
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+    padding: 2px 5px;
+    border-radius: 4px;
+    align-self: center;
+    white-space: nowrap;
+}
+
+.catalog-comm-badge.badge-i2c {
+    color: #25c7f8;
+    background: rgba(37, 199, 248, 0.12);
+    border: 1px solid rgba(37, 199, 248, 0.35);
+}
+
+.catalog-comm-badge.badge-spi {
+    color: #c084fc;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.catalog-comm-badge.badge-uart {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.catalog-list {
     display: flex;
     flex-direction: column;
     gap: 7px;
@@ -1511,9 +1676,9 @@ input:focus-visible {
     min-height: 46px;
     padding: 8px 10px;
     display: grid;
-    grid-template-columns: 31px 1fr 16px;
+    grid-template-columns: 31px 1fr auto 16px;
     align-items: center;
-    gap: 9px;
+    gap: 8px;
     border-radius: 10px;
     color: var(--text-2);
     background: rgba(7, 19, 38, 0.78);
@@ -1529,8 +1694,38 @@ input:focus-visible {
     border-color: var(--primary-border);
 }
 
+.catalog-item.item-actuator:hover {
+    border-color: rgba(247, 183, 49, 0.42);
+    background: rgba(247, 183, 49, 0.08);
+}
+
+.catalog-item.item-sensor:hover {
+    border-color: rgba(37, 199, 248, 0.42);
+    background: rgba(37, 199, 248, 0.08);
+}
+
 .catalog-item:active { cursor: grabbing; }
-.catalog-icon { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; background: rgba(10, 78, 190, 0.14); border: 1px solid rgba(75, 143, 245, 0.2); }
+
+.catalog-icon {
+    width: 31px;
+    height: 31px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: rgba(10, 78, 190, 0.14);
+    border: 1px solid rgba(75, 143, 245, 0.2);
+}
+
+.catalog-icon.icon-actuator {
+    background: rgba(247, 183, 49, 0.12);
+    border: 1px solid rgba(247, 183, 49, 0.28);
+}
+
+.catalog-icon.icon-sensor {
+    background: rgba(37, 199, 248, 0.12);
+    border: 1px solid rgba(37, 199, 248, 0.28);
+}
+
 .catalog-copy strong { display: block; font-size: 0.7rem; }
 .catalog-copy small { display: block; margin-top: 3px; font-size: 0.57rem; color: var(--text-4); }
 .catalog-drag { font-family: var(--font-mono); color: var(--text-4); }
@@ -1664,6 +1859,43 @@ input:focus-visible {
 
 .wiring-select.gpio { 
     color: var(--cyan); 
+}
+
+.wiring-select.comm-type {
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: #071529;
+    border-color: rgba(37, 199, 248, 0.32);
+}
+
+.wiring-select.comm-type.comm-i2c {
+    color: #25c7f8;
+    border-color: rgba(37, 199, 248, 0.45);
+}
+
+.wiring-select.comm-type.comm-spi {
+    color: #c084fc;
+    border-color: rgba(168, 85, 247, 0.45);
+}
+
+.wiring-select.comm-type.comm-uart {
+    color: #fbbf24;
+    border-color: rgba(245, 158, 11, 0.45);
+}
+
+.wiring-select optgroup,
+.form-select optgroup {
+    background: #091a32;
+    color: var(--amber);
+    font-weight: 700;
+    font-style: normal;
+}
+
+.wiring-select option,
+.form-select option {
+    background: #061121;
+    color: var(--text-1);
+    font-weight: normal;
 }
 
 .btn-delete {

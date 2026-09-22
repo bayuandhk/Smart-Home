@@ -22,7 +22,7 @@
     let buzzerTimer = null;
 
     let registeredWidgets = [];
-    const socket = typeof io === 'function' ? io() : null;
+    const socket = typeof io === 'function' ? io({ transports: ['polling'] }) : null;
 
     // 1. Baca data widget dinamis dari database SQLite (via index.html)
     function loadRegisteredWidgets() {
@@ -211,6 +211,17 @@
         });
     }
 
+    function applyWidgetPositions() {
+        document.querySelectorAll('#denah-wrapper [data-pos-x][data-pos-y]').forEach((el) => {
+            const x = el.getAttribute('data-pos-x');
+            const y = el.getAttribute('data-pos-y');
+            if (x !== null && y !== null) {
+                el.style.left = `${x}%`;
+                el.style.top = `${y}%`;
+            }
+        });
+    }
+
     // 4. Kontrol aktif gerbang
     window.commandGate = function (actionType = 'TOGGLE') {
         if (!socket || !socket.connected) {
@@ -222,6 +233,12 @@
         const gateWidget = registeredWidgets.find(w => w.widget_type === 'GATE_CONTROL');
         const ch = gateWidget && gateWidget.mapping ? gateWidget.mapping.channel_index : 7;
         
+        // Optimistic UI Update: Langsung respons visual tanpa jeda round-trip jaringan
+        const overlayGate = document.getElementById('overlay-gate');
+        const isCurrentlyOpen = overlayGate ? overlayGate.classList.contains('open') : false;
+        const nextState = (actionType === 'TOGGLE') ? !isCurrentlyOpen : (actionType === 'OPEN' || actionType === true);
+        updateGate(nextState ? 'OPEN' : 'CLOSED');
+
         console.log('[WEB UI] Mengirim perintah kontrol gerbang:', actionType, 'ke channel', ch);
         
         // Gunakan Universal Relay event agar Backend memprosesnya secara konsisten
@@ -446,14 +463,29 @@
                 if (!tooltip) return;
 
                 let valText = '';
-                if (w.widget_type === 'SENSOR_TEMP' && data.environment && data.environment.temperature) {
-                    valText = data.environment.temperature.toFixed(1) + ' °C';
+                const inst = (data.instances && w.label_name) ? data.instances[w.label_name] : null;
+
+                if (w.widget_type === 'SENSOR_TEMP') {
+                    if (inst && inst.temperature !== undefined && inst.temperature !== null) {
+                        valText = Number(inst.temperature).toFixed(1) + ' °C';
+                    } else if (data.environment && data.environment.temperature && (!data.instances || Object.keys(data.instances).length === 0)) {
+                        valText = Number(data.environment.temperature).toFixed(1) + ' °C';
+                    }
                 } 
-                else if (w.widget_type === 'SENSOR_GAS' && data.environment && data.environment.gas_ppm) {
-                    valText = data.environment.gas_ppm.toFixed(1) + ' ppm';
+                else if (w.widget_type === 'SENSOR_GAS') {
+                    if (inst && (inst.raw !== undefined || inst.val !== undefined)) {
+                        const gVal = inst.raw !== undefined ? inst.raw : inst.val;
+                        valText = Number(gVal).toFixed(1) + ' ppm';
+                    } else if (data.environment && data.environment.gas_ppm) {
+                        valText = Number(data.environment.gas_ppm).toFixed(1) + ' ppm';
+                    }
                 } 
-                else if (w.widget_type === 'SENSOR_POWER' && data.telemetry && data.telemetry.power) {
-                    valText = data.telemetry.power.toFixed(1) + ' W';
+                else if (w.widget_type === 'SENSOR_POWER') {
+                    if (inst && inst.val !== undefined) {
+                        valText = Number(inst.val).toFixed(1) + ' W';
+                    } else if (data.telemetry && data.telemetry.power) {
+                        valText = Number(data.telemetry.power).toFixed(1) + ' W';
+                    }
                 }
 
                 if (valText !== '' && tooltip.innerText !== valText) {
@@ -478,6 +510,7 @@
     // 8. Inisialisasi DOM
     document.addEventListener('DOMContentLoaded', () => {
         loadRegisteredWidgets();
+        applyWidgetPositions();
         initDeviceList();
         initGateControls();
         initPowerChart();

@@ -40,7 +40,7 @@ class ControllerBoard(db.Model):
   project_id = db.Column(
       db.Integer, db.ForeignKey('projects.id'), nullable=False
   )
-  board_name = db.Column(db.String(50), default="ESP32-WROOM-32")
+  board_name = db.Column(db.String(50), default="ESP32-S3-DevKitC-1")
   device_id = db.Column(db.String(50), default="panel01")
 
   function_blocks = db.relationship(
@@ -103,6 +103,7 @@ class IOMapping(db.Model):
   gpio_pin = db.Column(db.Integer, nullable=False)
   active_low = db.Column(db.Boolean, default=False)
   array_order = db.Column(db.Integer, default=0)
+  comm_type = db.Column(db.String(20), default="RELAY")
 
 class AutomationRule(db.Model):
   __tablename__ = 'automation_rules'
