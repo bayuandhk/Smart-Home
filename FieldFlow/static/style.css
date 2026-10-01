@@ -213,6 +213,49 @@ input:focus-visible {
     color: var(--text-3);
 }
 
+/* HMI Quick Navigation Tabs */
+.hmi-nav-tabs {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: rgba(10, 24, 46, 0.7);
+    padding: 3px 5px;
+    border-radius: 10px;
+    border: 1px solid rgba(77, 139, 233, 0.25);
+    backdrop-filter: blur(10px);
+}
+
+.hmi-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-3);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.hmi-tab-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.hmi-tab-btn.active {
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), #1b6ef3);
+    border-color: rgba(148, 195, 255, 0.4);
+    box-shadow: 0 2px 10px rgba(10, 78, 190, 0.4);
+}
+
+.hmi-tab-btn .tab-icon {
+    font-size: 0.85rem;
+}
+
 .header-meta {
     min-width: 112px;
     padding-right: 14px;
@@ -469,14 +512,15 @@ input:focus-visible {
 
 .denah-container {
     position: relative;
-    flex: 1 1 auto !important;
-    height: auto !important;
-    min-height: 580px; /* Jarak vertikal aman agar tidak terlalu pendek */
-    padding: 14px;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+    padding: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: visible !important; /* KUNCI: Membiarkan area gerbang & pompa tampil utuh */
+    overflow: visible;
     border-radius: 16px;
     background:
         radial-gradient(circle at 50% 0%, rgba(10, 78, 190, 0.13), transparent 34%),
@@ -488,7 +532,7 @@ input:focus-visible {
 .denah-container::before {
     content: '';
     position: absolute;
-    inset: 8px;
+    inset: 6px;
     border-radius: 12px;
     border: 1px solid rgba(117, 169, 248, 0.06);
     pointer-events: none;
@@ -497,21 +541,24 @@ input:focus-visible {
 .denah-wrapper {
     position: relative;
     display: inline-block;
-    width: min(100%, 840px);
     max-width: 100%;
-    height: auto !important;
+    max-height: 100%;
+    width: auto;
+    height: auto;
     margin: auto;
     line-height: 0;
     border-radius: 13px;
     background: #fff;
-    box-shadow: 0 24px 55px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(117, 169, 248, 0.18);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(117, 169, 248, 0.18);
+    transition: width 0.15s ease, height 0.15s ease;
 }
 
 .denah-image {
     display: block;
     width: 100%;
-    height: auto !important;
-    max-height: none !important; /* KUNCI: Cabut batasan max-height 70vh yang menggunting gambar */
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
     border-radius: 13px;
     user-select: none;
@@ -2017,28 +2064,193 @@ input:focus-visible {
     .device-room { grid-template-columns: 80px minmax(0, 1fr); }
 }
 
-@media (max-width: 1120px) {
-    body.dashboard-page { overflow-y: auto; }
-    .main-container { grid-template-columns: 1fr; }
+@media (max-width: 1120px), (max-height: 700px) {
+    :root { 
+        --header-height: 50px; 
+    }
+    
+    body.dashboard-page { 
+        overflow-y: auto; 
+    }
+    
+    .header {
+        height: var(--header-height);
+        padding: 0 14px;
+        gap: 12px;
+    }
+    
+    .header-logo {
+        width: 34px;
+        height: 34px;
+        flex: 0 0 34px;
+        border-radius: 10px;
+    }
+    
+    .header-logo svg {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .header-kicker, 
+    .header-subtitle { 
+        display: none; 
+    }
+    
+    .header-title { 
+        margin-top: 0; 
+        font-size: 0.92rem; 
+        white-space: nowrap;
+    }
+    
+    .header-meta {
+        min-width: 0;
+        padding-right: 8px;
+    }
+    
+    .header-meta-label {
+        display: none;
+    }
+    
+    .timestamp-display {
+        margin-top: 0;
+        font-size: 0.74rem;
+        padding: 2px 6px;
+    }
+    
+    .connection-status { 
+        min-width: 0; 
+        padding: 4px 8px; 
+        border-radius: 8px;
+    }
+    
+    .connection-copy small { 
+        display: none; 
+    }
+    
+    .connection-copy strong {
+        font-size: 0.70rem;
+    }
 
-    /* Pastikan saat turun ke 1 kolom, kartu denah tetap fleksibel memanjang ke bawah */
+    /* HMI Nav Tabs aktif untuk layar 7-inci */
+    .hmi-nav-tabs {
+        display: flex !important;
+    }
+
+    .main-container { 
+        padding: calc(var(--header-height) + 8px) 10px 10px; 
+        gap: 10px; 
+        min-height: calc(100vh - var(--header-height));
+        grid-template-columns: 1fr; 
+    }
+
+    /* Tab Toggle Behavior di Mode HMI */
+    body:not(.hmi-view-telemetry) .telemetry-panel {
+        display: none !important;
+    }
+    
+    body:not(.hmi-view-telemetry) .floorplan-container {
+        display: block !important;
+        width: 100% !important;
+    }
+    
+    body.hmi-view-telemetry .floorplan-container {
+        display: none !important;
+    }
+    
+    body.hmi-view-telemetry .telemetry-panel {
+        display: grid !important;
+        width: 100% !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 10px;
+        max-height: calc(100vh - var(--header-height) - 18px);
+        overflow-y: auto !important;
+        padding-bottom: 20px;
+    }
+
+    /* Kartu Denah: Pas 1 Layar Penuh Tanpa Terpotong */
     .floorplan-card { 
-        height: auto !important;
-        min-height: min-content !important;
-        padding: 18px;
+        height: calc(100vh - var(--header-height) - 18px) !important;
+        max-height: calc(100vh - var(--header-height) - 18px) !important;
+        min-height: 0 !important;
+        padding: 10px 12px;
         display: flex;
         flex-direction: column;
-        border-radius: var(--radius-xl);
+        border-radius: 16px;
         overflow: visible !important; 
     }
 
-    .telemetry-panel { 
-        width: 100%; 
-        height: auto; 
-        display: grid; 
-        grid-template-columns: repeat(2, minmax(0, 1fr)); 
-        overflow: visible; 
+    .floorplan-header { 
+        margin-bottom: 6px; 
+        padding-bottom: 6px; 
+        gap: 8px;
+        align-items: center; 
     }
+
+    .card-description { 
+        display: none; 
+    }
+
+    .section-kicker {
+        font-size: 0.58rem;
+        margin-bottom: 2px;
+    }
+
+    .card-title {
+        font-size: 0.88rem;
+    }
+
+    .card-badge.live {
+        padding: 3px 8px;
+        font-size: 0.65rem;
+    }
+
+    .btn-edit-mode {
+        padding: 4px 10px;
+        font-size: 0.70rem;
+    }
+
+    .denah-toolbar {
+        margin-bottom: 6px;
+        padding: 3px 8px;
+        font-size: 0.62rem;
+    }
+
+    .legend {
+        margin-top: 6px;
+        padding-top: 6px;
+        font-size: 0.64rem;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .legend-note {
+        display: none;
+    }
+
+    .denah-container { 
+        position: relative;
+        flex: 1 1 auto !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        padding: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: visible !important;
+        border-radius: 14px;
+    }
+
+    /* Ukuran Widget Adaptif Layar 7 Inci */
+    .overlay-icon { 
+        transform: translate(-50%, -50%) scale(0.85); 
+    }
+    .overlay-icon:hover { 
+        transform: translate(-50%, -50%) scale(0.92); 
+    }
+    .overlay-gate { 
+        transform: translate(-50%, -50%) scale(0.85); 
+    }
+
     .device-card { grid-row: span 2; }
 
     /* Responsive SH Studio */
@@ -2048,64 +2260,86 @@ input:focus-visible {
     .studio-actions { margin-top: 0; align-self: end; }
 }
 
-@media (max-width: 760px) {
-    :root { --header-height: 68px; }
-    .header { padding: 0 12px; }
-    .header-logo { width: 40px; height: 40px; flex-basis: 40px; border-radius: 12px; }
-    .header-kicker, .header-subtitle, .header-meta { display: none; }
-    .header-title { margin-top: 0; font-size: 0.94rem; }
-    .connection-status { min-width: 0; padding: 8px 10px; }
-    .connection-copy small { display: none; }
+@media (max-width: 820px), (max-height: 520px) {
+    :root { 
+        --header-height: 44px; 
+    }
 
-    .main-container { padding: calc(var(--header-height) + 10px) 9px 12px; gap: 10px; }
-    
-    /* Pada layar HP, biarkan denah memanjang namun izinkan scroll horizontal jika gambar terlalu lebar */
+    .header { 
+        padding: 0 8px; 
+        gap: 8px;
+    }
+
+    .header-logo { 
+        width: 30px; 
+        height: 30px; 
+        flex: 0 0 30px; 
+        border-radius: 8px; 
+    }
+
+    .header-logo svg { 
+        width: 16px; 
+        height: 16px; 
+    }
+
+    .header-title { 
+        font-size: 0.82rem; 
+    }
+
+    .header-meta { 
+        display: none; 
+    }
+
+    .hmi-tab-btn {
+        padding: 4px 8px;
+        font-size: 0.70rem;
+        gap: 4px;
+    }
+
     .floorplan-card { 
-        height: auto !important;
-        min-height: min-content !important; 
-        padding: 12px; 
-        border-radius: 17px; 
-    }
-    .floorplan-header { align-items: flex-start; }
-    .card-description, .denah-toolbar, .legend-note { display: none; }
-    .card-actions { width: 100%; justify-content: flex-start; }
-    .card-header { flex-direction: column; gap: 10px; }
-    .card-header.compact { flex-direction: row; }
-
-    .denah-container { 
-        position: relative;
-        flex: 1 1 auto !important;
-        height: auto !important;
-        min-height: 480px;
-        padding: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: auto !important; /* Di HP, izinkan geser kanan-kiri agar tidak rusak */
-        border-radius: 16px;
-        background:
-            radial-gradient(circle at 50% 0%, rgba(10, 78, 190, 0.13), transparent 34%),
-            linear-gradient(145deg, #071122, #030a15);
-        border: 1px solid rgba(77, 139, 233, 0.2);
-        box-shadow: inset 0 0 42px rgba(0, 0, 0, 0.35); 
+        height: calc(100vh - var(--header-height) - 12px) !important;
+        max-height: calc(100vh - var(--header-height) - 12px) !important;
+        padding: 6px 8px; 
+        border-radius: 13px; 
     }
 
-    /* Perkecil sedikit ukuran widget agar pas dengan skala layar HP */
-    .overlay-icon { transform: translate(-50%, -50%) scale(0.82); }
-    .overlay-icon:hover { transform: translate(-50%, -50%) scale(0.9); }
-    .overlay-gate { transform: translate(-50%, -50%) scale(0.82); }
+    .denah-toolbar-hint { 
+        display: none; 
+    }
+
+    .overlay-icon { 
+        transform: translate(-50%, -50%) scale(0.76); 
+    }
+    .overlay-icon:hover { 
+        transform: translate(-50%, -50%) scale(0.84); 
+    }
+    .overlay-gate { 
+        transform: translate(-50%, -50%) scale(0.76); 
+    }
+
+    body.hmi-view-telemetry .telemetry-panel { 
+        grid-template-columns: 1fr !important; 
+    }
     
-    .telemetry-panel { grid-template-columns: 1fr; }
-    .metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .metrics-grid { 
+        grid-template-columns: repeat(2, minmax(0, 1fr)); 
+    }
 
-    /* Studio Mobile */
-    .studio-header { height: 68px; padding: 0 10px; }
-    .studio-brand-copy small, .studio-mode-badge { display: none; }
-    .studio-nav-link { padding: 0 9px; }
-    .studio-container { padding: 80px 9px 9px; display: flex; flex-direction: column; }
-    .studio-panel, .canvas-shell { min-height: 520px; }
-    .studio-panel:last-child { display: flex; min-height: 620px; }
-    .canvas-shell { order: -1; }
+    /* Modal Alarm Compact */
+    .alarm-modal {
+        padding: 18px;
+    }
+    .alarm-icon-blink {
+        width: 56px;
+        height: 56px;
+        font-size: 1.8rem;
+    }
+    .alarm-text {
+        margin-top: 10px;
+    }
+    .alarm-title-text {
+        font-size: 1.5rem;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -8,7 +8,7 @@
         content="Smart Home HMI Dashboard untuk kontrol dan monitoring perangkat rumah pintar secara real-time.">
     <meta name="theme-color" content="#071426">
     <title>Smart Home HMI Dashboard — SCADA Monitor</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=hmi7">
 </head>
 
 <body class="dashboard-page">
@@ -48,6 +48,18 @@
                 <div class="header-subtitle">Supervisory Control &amp; Data Acquisition</div>
             </div>
         </div>
+
+        <!-- HMI Quick Navigation for 7-Inch & Compact Displays -->
+        <nav class="hmi-nav-tabs" id="hmi-nav-tabs" aria-label="Navigasi Tampilan HMI">
+            <button type="button" class="hmi-tab-btn active" id="tab-btn-denah" onclick="switchHmiTab('denah')">
+                <span class="tab-icon">⌂</span>
+                <span class="tab-label">Denah Monitor</span>
+            </button>
+            <button type="button" class="hmi-tab-btn" id="tab-btn-telemetry" onclick="switchHmiTab('telemetry')">
+                <span class="tab-icon">ϟ</span>
+                <span class="tab-label">Telemetri &amp; Kontrol</span>
+            </button>
+        </nav>
 
         <div class="header-right">
             <a href="/logout" class="btn-edit-mode"
@@ -258,7 +270,7 @@
     </main>
     <script src="{{ url_for('static', filename='js/chart.js') }}"></script>
     <script src="{{ url_for('static', filename='js/socket.io.js') }}"></script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}?v=hmi7"></script>
 </body>
 
 </html>

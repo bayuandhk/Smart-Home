@@ -500,6 +500,60 @@
         });
     }
 
+    // 7b. Penyesuaian Responsif Denah (Fit Tanpa Terpotong pada Display HMI 7 Inci)
+    function syncDenahDimensions() {
+        const container = document.getElementById('denah-container');
+        const wrapper = document.getElementById('denah-wrapper');
+        const image = document.getElementById('denah-image');
+        if (!container || !wrapper || !image) return;
+
+        // Jika gambar belum selesai loading, pasang listener
+        if (!image.naturalWidth || !image.naturalHeight) {
+            image.addEventListener('load', syncDenahDimensions, { once: true });
+            return;
+        }
+
+        const containerStyle = window.getComputedStyle(container);
+        const padX = (parseFloat(containerStyle.paddingLeft) || 0) + (parseFloat(containerStyle.paddingRight) || 0);
+        const padY = (parseFloat(containerStyle.paddingTop) || 0) + (parseFloat(containerStyle.paddingBottom) || 0);
+
+        const availW = Math.max(100, container.clientWidth - padX);
+        const availH = Math.max(100, container.clientHeight - padY);
+
+        const natW = image.naturalWidth;
+        const natH = image.naturalHeight;
+        const ratio = natW / natH;
+
+        let targetW = availW;
+        let targetH = targetW / ratio;
+
+        if (targetH > availH) {
+            targetH = availH;
+            targetW = targetH * ratio;
+        }
+
+        wrapper.style.width = `${Math.floor(targetW)}px`;
+        wrapper.style.height = `${Math.floor(targetH)}px`;
+    }
+
+    // 7c. Navigasi Cepat Tab HMI (Layar 7 Inci)
+    window.switchHmiTab = function (tabName) {
+        const btnDenah = document.getElementById('tab-btn-denah');
+        const btnTelemetry = document.getElementById('tab-btn-telemetry');
+        if (btnDenah && btnTelemetry) {
+            if (tabName === 'telemetry') {
+                btnDenah.classList.remove('active');
+                btnTelemetry.classList.add('active');
+                document.body.classList.add('hmi-view-telemetry');
+            } else {
+                btnTelemetry.classList.remove('active');
+                btnDenah.classList.add('active');
+                document.body.classList.remove('hmi-view-telemetry');
+                setTimeout(syncDenahDimensions, 30);
+            }
+        }
+    };
+
     document.addEventListener('keydown', (event) => {
         const overlay = document.getElementById('alarm-overlay');
         if (event.key === 'Enter' && overlay?.classList.contains('active')) {
@@ -516,6 +570,21 @@
         initPowerChart();
         initTooltips();
         bindSocketEvents();
+
+        // Inisialisasi auto-scale denah agar pas di layar 7 inci
+        syncDenahDimensions();
+        window.addEventListener('resize', syncDenahDimensions);
+        const denahImg = document.getElementById('denah-image');
+        if (denahImg) {
+            denahImg.addEventListener('load', syncDenahDimensions);
+        }
+        if (window.ResizeObserver) {
+            const container = document.getElementById('denah-container');
+            if (container) {
+                new ResizeObserver(() => syncDenahDimensions()).observe(container);
+            }
+        }
+
         console.log('[APP] Smart Home HMI Dashboard initialized (Adaptive & Bidirectional Mode)');
     });
 })();
