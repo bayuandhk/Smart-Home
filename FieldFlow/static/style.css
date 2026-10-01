@@ -1648,6 +1648,24 @@ input:focus-visible {
     white-space: nowrap;
 }
 
+.catalog-comm-badge.badge-digital {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.12);
+    border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.catalog-comm-badge.badge-analog {
+    color: #fb923c;
+    background: rgba(251, 146, 60, 0.12);
+    border: 1px solid rgba(251, 146, 60, 0.35);
+}
+
+.catalog-comm-badge.badge-1wire {
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
 .catalog-comm-badge.badge-i2c {
     color: #25c7f8;
     background: rgba(37, 199, 248, 0.12);
@@ -1866,6 +1884,21 @@ input:focus-visible {
     letter-spacing: 0.03em;
     background: #071529;
     border-color: rgba(37, 199, 248, 0.32);
+}
+
+.wiring-select.comm-type.comm-digital {
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.45);
+}
+
+.wiring-select.comm-type.comm-analog {
+    color: #fb923c;
+    border-color: rgba(251, 146, 60, 0.45);
+}
+
+.wiring-select.comm-type.comm-1wire {
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.45);
 }
 
 .wiring-select.comm-type.comm-i2c {

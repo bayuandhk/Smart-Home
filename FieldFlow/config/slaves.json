@@ -1,0 +1,19 @@
+{
+  "slaves": [
+    {
+      "slave_id": 1,
+      "slave_uid": "SLV-01",
+      "ip": "192.168.88.252"
+    },
+    {
+      "slave_id": 2,
+      "slave_uid": "SLV-02",
+      "ip": "192.168.88.253"
+    },
+    {
+      "slave_id": 3,
+      "slave_uid": "SLV-03",
+      "ip": "192.168.88.254"
+    }
+  ]
+}

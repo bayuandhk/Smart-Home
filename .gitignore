@@ -7,7 +7,6 @@ venv/
 *.log
 Dokumen/
 
-
 # Mengabaikan file executable dan dokumen proyek lokal
 ngrok.exe
 *.pdf
@@ -15,8 +14,18 @@ ngrok.exe
 *.docx
 *.pptx
 
+# Mengabaikan folder non-FieldFlow
+Hardware/
+UI/
+fieldFlowMainCtrl_v2/
+fieldFlowMainCtrl_v2*.zip
+md/
+
 # Mengabaikan gambar root (seperti etl.png), tapi izinkan denah di static
 *.png
 !static/images/*.png
 !static/images/*.jpg
 !static/images/*.webp
+!**/static/images/*.png
+!**/static/images/*.jpg
+!**/static/images/*.webp

@@ -183,41 +183,41 @@
                             <span class="group-badge-icon">📡</span>
                             <span class="group-title-text">Sensor &amp; Monitoring</span>
                         </div>
-                        <span class="catalog-badge badge-sensor">I2C / SPI / UART</span>
+                        <span class="catalog-badge badge-sensor">DIGITAL / ANALOG / UART</span>
                     </div>
                     <div class="catalog-list">
                         <div class="catalog-item item-sensor" draggable="true" ondragstart="drag(event)" data-type="SENSOR_TEMP"
-                            data-comm="I2C" data-icon="🌡️" data-label="TEMP">
+                            data-comm="1-WIRE" data-icon="🌡️" data-label="TEMP">
                             <span class="catalog-icon icon-sensor">🌡️</span>
-                            <span class="catalog-copy"><strong>Temp / Humidity</strong><small>DHT / SHT3x bus</small></span>
-                            <span class="catalog-comm-badge badge-i2c">I2C</span>
+                            <span class="catalog-copy"><strong>Temp / Humidity</strong><small>DHT11 1-Wire / SHT3x I2C</small></span>
+                            <span class="catalog-comm-badge badge-1wire">1-WIRE</span>
                             <span class="catalog-drag">⋮⋮</span>
                         </div>
                         <div class="catalog-item item-sensor" draggable="true" ondragstart="drag(event)" data-type="SENSOR_GAS"
-                            data-comm="I2C" data-icon="💨" data-label="GAS">
+                            data-comm="ANALOG" data-icon="💨" data-label="GAS">
                             <span class="catalog-icon icon-sensor">💨</span>
-                            <span class="catalog-copy"><strong>Gas Sensor</strong><small>MQ / SGP air quality</small></span>
-                            <span class="catalog-comm-badge badge-i2c">I2C</span>
+                            <span class="catalog-copy"><strong>Gas Sensor</strong><small>MQ-2 gas/smoke analog (AI)</small></span>
+                            <span class="catalog-comm-badge badge-analog">ANALOG</span>
                             <span class="catalog-drag">⋮⋮</span>
                         </div>
                         <div class="catalog-item item-sensor" draggable="true" ondragstart="drag(event)" data-type="SENSOR_FIRE"
-                            data-comm="SPI" data-icon="🔥" data-label="FIRE">
+                            data-comm="DIGITAL" data-icon="🔥" data-label="FIRE">
                             <span class="catalog-icon icon-sensor">🔥</span>
-                            <span class="catalog-copy"><strong>Fire Sensor</strong><small>Flame / thermal SPI</small></span>
-                            <span class="catalog-comm-badge badge-spi">SPI</span>
+                            <span class="catalog-copy"><strong>Fire Sensor</strong><small>Flame IR digital detector (NIO)</small></span>
+                            <span class="catalog-comm-badge badge-digital">DIGITAL</span>
                             <span class="catalog-drag">⋮⋮</span>
                         </div>
                         <div class="catalog-item item-sensor" draggable="true" ondragstart="drag(event)" data-type="SENSOR_PIR"
-                            data-comm="SPI" data-icon="🏃" data-label="PIR">
+                            data-comm="DIGITAL" data-icon="🏃" data-label="PIR">
                             <span class="catalog-icon icon-sensor">🏃</span>
-                            <span class="catalog-copy"><strong>PIR Motion</strong><small>Occupancy SPI bus</small></span>
-                            <span class="catalog-comm-badge badge-spi">SPI</span>
+                            <span class="catalog-copy"><strong>PIR Motion</strong><small>HC-SR501 motion digital (NIO)</small></span>
+                            <span class="catalog-comm-badge badge-digital">DIGITAL</span>
                             <span class="catalog-drag">⋮⋮</span>
                         </div>
                         <div class="catalog-item item-sensor" draggable="true" ondragstart="drag(event)" data-type="SENSOR_POWER"
                             data-comm="UART" data-icon="⚡" data-label="POWER">
                             <span class="catalog-icon icon-sensor">⚡</span>
-                            <span class="catalog-copy"><strong>Power Meter</strong><small>PZEM Modbus UART</small></span>
+                            <span class="catalog-copy"><strong>Power Meter</strong><small>PZEM Modbus UART / RS485</small></span>
                             <span class="catalog-comm-badge badge-uart">UART</span>
                             <span class="catalog-drag">⋮⋮</span>
                         </div>
@@ -440,11 +440,38 @@
                 return 'RELAY';
             }
             if (type === 'SENSOR_POWER') return 'UART';
-            if (type === 'SENSOR_FIRE' || type === 'SENSOR_PIR') return 'SPI';
-            return 'I2C';
+            if (type === 'SENSOR_GAS') return 'ANALOG';
+            if (type === 'SENSOR_FIRE' || type === 'SENSOR_PIR') return 'DIGITAL';
+            if (type === 'SENSOR_TEMP') return '1-WIRE';
+            return 'DIGITAL';
         }
 
         function getCommPinList(board, commType) {
+            if (commType === 'ANALOG' || commType === 'ADC') {
+                return [
+                    { label: 'AI1 (GPIO 1)', value: 1, group: 'Analog Input (AI)' },
+                    { label: 'AI2 (GPIO 2)', value: 2, group: 'Analog Input (AI)' },
+                    { label: 'AI3 (GPIO 3)', value: 3, group: 'Analog Input (AI)' },
+                    { label: 'AI4 (GPIO 7)', value: 7, group: 'Analog Input (AI)' }
+                ];
+            }
+            if (commType === 'DIGITAL' || commType === '1-WIRE' || commType === 'GPIO') {
+                return [
+                    { label: 'NIO1 (GPIO 35)', value: 35, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'NIO2 (GPIO 36)', value: 36, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'NIO3 (GPIO 37)', value: 37, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'NIO4 (GPIO 38)', value: 38, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'NIO5 (GPIO 39)', value: 39, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'NIO6 (GPIO 40)', value: 40, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'NIO7 (GPIO 41)', value: 41, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'NIO8 (GPIO 42)', value: 42, group: 'Digital Normal I/O (NIO)' },
+                    { label: 'GPIO 15', value: 15, group: 'GPIO Cadangan' },
+                    { label: 'GPIO 16', value: 16, group: 'GPIO Cadangan' },
+                    { label: 'GPIO 19', value: 19, group: 'GPIO Cadangan' },
+                    { label: 'GPIO 20', value: 20, group: 'GPIO Cadangan' },
+                    { label: 'GPIO 21', value: 21, group: 'GPIO Cadangan' }
+                ];
+            }
             if (commType === 'I2C') {
                 return [
                     { label: 'I2C_SDA (GPIO 8)', value: 8, group: 'I2C Bus' },
@@ -493,6 +520,8 @@
 
             let defPin = 35;
             if (commType === 'RELAY') defPin = 35 + (index % 8);
+            else if (commType === 'ANALOG') defPin = 1;
+            else if (commType === 'DIGITAL' || commType === '1-WIRE') defPin = 35 + (index % 8);
             else if (commType === 'I2C') defPin = 8;
             else if (commType === 'SPI') defPin = 10;
             else if (commType === 'UART') defPin = 4;
@@ -660,8 +689,19 @@
                     comm_type: 'RELAY'
                 };
             } else {
-                let autoPin = 8;
-                if (comm === 'I2C') {
+                let autoPin = 35;
+                if (comm === 'ANALOG') {
+                    const usedAiPins = currentWidgets
+                        .filter(w => w.mapping && (w.mapping.comm_type === 'ANALOG' || w.mapping.comm_type === 'ADC'))
+                        .map(w => Number(w.mapping.gpio_pin));
+                    const aiCandidates = [1, 2, 3, 7];
+                    autoPin = aiCandidates.find(p => !usedAiPins.includes(p)) || 1;
+                } else if (comm === 'DIGITAL' || comm === '1-WIRE') {
+                    const usedPins = currentWidgets
+                        .map(w => Number(w.mapping?.gpio_pin));
+                    const candidates = [15, 16, 19, 20, 21, 35, 36, 37, 38, 39, 40, 41, 42];
+                    autoPin = candidates.find(p => !usedPins.includes(p)) || 15;
+                } else if (comm === 'I2C') {
                     autoPin = 8; // I2C_SDA (GPIO 8)
                 } else if (comm === 'SPI') {
                     const usedSpiPins = currentWidgets
@@ -884,11 +924,62 @@
 
                     controls.append(channelSelect, pinSelect, triggerSelect);
                 } else {
-                    controls.style.gridTemplateColumns = '1fr 1fr';
+                    controls.style.gridTemplateColumns = '1fr 2fr';
 
-                    const emptySpacer = document.createElement('div');
+                    const commSelect = document.createElement('select');
+                    const curComm = widget.mapping.comm_type || getDefaultCommType(widget.widget_type);
+                    commSelect.className = `wiring-select comm-type comm-${curComm.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+                    commSelect.setAttribute('aria-label', `Interface ${widget.label_name}`);
 
-                    controls.append(emptySpacer, pinSelect);
+                    const commOptions = [
+                        { label: 'DIGITAL (NIO)', value: 'DIGITAL' },
+                        { label: 'ANALOG (AI)', value: 'ANALOG' },
+                        { label: '1-WIRE (GPIO)', value: '1-WIRE' },
+                        { label: 'UART Serial', value: 'UART' },
+                        { label: 'I2C Bus', value: 'I2C' },
+                        { label: 'SPI Bus', value: 'SPI' }
+                    ];
+
+                    commOptions.forEach(opt => {
+                        commSelect.add(new Option(opt.label, opt.value, false, curComm === opt.value));
+                    });
+
+                    function populateSensorPins(cType) {
+                        pinSelect.innerHTML = '';
+                        const filteredPins = getCommPinList(board, cType);
+                        const pGroups = {};
+                        filteredPins.forEach(item => {
+                            const grp = item.group || 'General I/O';
+                            if (!pGroups[grp]) pGroups[grp] = [];
+                            pGroups[grp].push(item);
+                        });
+                        Object.keys(pGroups).forEach(groupName => {
+                            const optGroup = document.createElement('optgroup');
+                            optGroup.label = groupName;
+                            pGroups[groupName].forEach(p => {
+                                const isSelected = Number(widget.mapping.gpio_pin) === Number(p.value);
+                                const opt = new Option(p.label, String(p.value), false, isSelected);
+                                optGroup.appendChild(opt);
+                            });
+                            pinSelect.appendChild(optGroup);
+                        });
+                        const pinValues = filteredPins.map(p => Number(p.value));
+                        if (!pinValues.includes(Number(widget.mapping.gpio_pin)) && pinValues.length > 0) {
+                            updateMapping(widget.id, 'pin', pinValues[0]);
+                            pinSelect.value = String(pinValues[0]);
+                        }
+                    }
+
+                    populateSensorPins(curComm);
+
+                    commSelect.addEventListener('change', () => {
+                        const newComm = commSelect.value;
+                        updateMapping(widget.id, 'comm', newComm);
+                        commSelect.className = `wiring-select comm-type comm-${newComm.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+                        populateSensorPins(newComm);
+                    });
+
+                    controls.append(commSelect, pinSelect);
                 }
 
                 const deleteButton = document.createElement('button');

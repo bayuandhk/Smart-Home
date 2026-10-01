@@ -23,6 +23,25 @@ from models import (
 )
 from werkzeug.utils import secure_filename
 import websockets
+import socket
+
+def get_local_ip():
+    try:
+        # Cek interface yang memiliki IP 192.168.88.254 terlebih dahulu
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            ip = info[4][0]
+            if ip == "192.168.88.254" or ip.startswith("192.168.88."):
+                return ip
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return "192.168.88.254"
 
 WS_LOOP = None
 
@@ -145,6 +164,19 @@ def get_io_name(pin_num):
         return f"{name} (GPIO {p})" if name else f"GPIO {p}"
     except:
         return str(pin_num)
+
+def get_default_comm_type(widget_type):
+    if widget_type == 'SENSOR_POWER':
+        return 'UART'
+    elif widget_type == 'SENSOR_GAS':
+        return 'ANALOG'
+    elif widget_type in ['SENSOR_FIRE', 'SENSOR_PIR']:
+        return 'DIGITAL'
+    elif widget_type == 'SENSOR_TEMP':
+        return '1-WIRE'
+    elif widget_type.startswith('SENSOR_'):
+        return 'DIGITAL'
+    return 'RELAY'
 
 @app.context_processor
 def inject_io_helpers():
@@ -455,9 +487,8 @@ async def st_engine_task():
                             else:
                                 channel_idx = 0
 
-                        cmd_payload = json.dumps({
+                        cmd_payload_dict = {
                             "type": "hardware_command",
-                            "target": "main_panel_01",
                             "payload": {
                                 "slave_id": 1,
                                 "module_type": "RELAY_8CH",
@@ -466,22 +497,22 @@ async def st_engine_task():
                                 "pin": gpio_pin,
                                 "state": bool(target_state)
                             }
-                        })
+                        }
                         
-                        # 3. Siarkan Payload ke Hardware (Main Panel/Slave) & Pager Mobile
+                        # 3. Siarkan Payload langsung ke Slave melalui Edge TCP Router
+                        from edge_server.router import router
+                        await router.handle_from_hmi(cmd_payload_dict)
+                        print(f"  ↳ 📤 [ST ENGINE] Dispatch ke Slave TCP: Slave 1, Ch {channel_idx} ({io_name}) -> {bool(target_state)}")
+
+                        # 4. Kirim ke Pager jika ada
                         for d_id, ws in list(connected_devices.items()):
-                            if is_hardware_panel(d_id):
-                                try:
-                                    await ws.send(cmd_payload)
-                                    print(f"  ↳ 📤 [ST ENGINE] Dispatch ke Hardware ({d_id}): Slave 1, Ch {channel_idx} ({io_name}) -> {bool(target_state)}")
-                                except Exception as err:
-                                    print(f"  ↳ ❌ [ST ENGINE] Gagal dispatch ke {d_id}: {err}")
-                            elif d_id.startswith("pager"):
+                            if d_id.startswith("pager"):
                                 event_msg = json.dumps({"type": "status_update", "from": "server", "to": "all", "payload": {"variable": pager_var_name, "value": target_state}})
                                 try:
                                     await ws.send(event_msg)
                                 except:
                                     pass
+
                                 
                     except ValueError:
                         print(f"[ST ENGINE] ⚠️ Error: '{rule.action_widget}' bukan format GPIO yang valid.")
@@ -523,10 +554,7 @@ def generate_hardware_manifests(project_id=1):
 
         comm_type = getattr(w.mapping, 'comm_type', None) if w.mapping else None
         if not comm_type:
-            if w.widget_type.startswith('SENSOR_'):
-                comm_type = 'UART' if w.widget_type == 'SENSOR_POWER' else ('SPI' if w.widget_type in ['SENSOR_FIRE', 'SENSOR_PIR'] else 'I2C')
-            else:
-                comm_type = 'RELAY'
+            comm_type = get_default_comm_type(w.widget_type)
 
         if w.widget_type.startswith('SENSOR_'):
             hw_sensor_type = "UNKNOWN"
@@ -569,8 +597,7 @@ def generate_hardware_manifests(project_id=1):
             })
 
     deploy_manifest = {
-        "type": "deploy_manifest",
-        "target": "main_panel_01",
+        "type": "runtime_manifest",
         "version": 1,
         "slave_id": 1,
         "instances": hw_instances
@@ -578,12 +605,12 @@ def generate_hardware_manifests(project_id=1):
 
     command_manifest = {
         "type": "command",
-        "target": "main_panel_01",
         "slave_id": 1,
         "actuators": hw_actuators
     }
 
     return deploy_manifest, command_manifest
+
 
 
 # ──────────────────────────────────────────────
@@ -641,10 +668,7 @@ def save_studio_state(project_id):
 
         comm_type = w_item['mapping'].get('comm_type')
         if not comm_type:
-          if w_item['widget_type'].startswith('SENSOR_'):
-            comm_type = 'UART' if w_item['widget_type'] == 'SENSOR_POWER' else ('SPI' if w_item['widget_type'] in ['SENSOR_FIRE', 'SENSOR_PIR'] else 'I2C')
-          else:
-            comm_type = 'RELAY'
+            comm_type = get_default_comm_type(w_item['widget_type'])
 
         new_m = IOMapping(
             widget_id=new_w.id,
@@ -664,52 +688,57 @@ def save_studio_state(project_id):
     # LIVE RELOAD & SSOT MANIFEST DEPLOYMENT
     # =====================================================================
     try:
+      all_widgets = WidgetNode.query.filter_by(project_id=proj.id).all()
+      
+      relay_items = []
+      sensor_pages = []
+
+      for idx, w in enumerate(all_widgets):
+        # A. Kumpulkan data untuk Sinkronisasi UI (Pager)
+        if w.widget_type in ['LAMP_INDICATOR', 'PUMP_CONTROL', 'GATE_CONTROL', 'FAN_CONTROL', 'SMART_PLUG']:
+            ch = w.mapping.channel_index if w.mapping else 0
+            is_on = virtual_state["relay"][ch] if 0 <= ch < len(virtual_state["relay"]) else False
+            relay_items.append({"variable": w.label_name, "value": is_on})
+        elif w.widget_type.startswith('SENSOR_'):
+            sensor_pages.append({
+                "page_id": f"env_{w.label_name}",
+                "sensor_type": w.widget_type,
+                "title": w.zone_name.upper() if w.zone_name else "AREA UMUM"
+            })
+
+      # B. Dapatkan Hardware Manifest resmi (ESP32)
+      deploy_manifest_dict, command_manifest_dict = generate_hardware_manifests(proj.id)
+
+      # 1. Pesan untuk UI Web Dashboard
+      msg_relay = json.dumps({"type": "runtime_list", "from": "server", "to": "all", "payload": {"relay": relay_items}})
+      msg_sensor = json.dumps({"type": "runtime_sensor_manifest", "from": "server", "to": "all", "payload": {"sensor_pages": sensor_pages}})
+      
+      # 2. SSoT Manifest Resmi (Sensor & Relay)
+      deploy_manifest = json.dumps(deploy_manifest_dict)
+      command_manifest = json.dumps(command_manifest_dict)
+
+      # Broadcast via WebSocket ke Pager jika loop WS aktif
       global WS_LOOP
       if WS_LOOP and WS_LOOP.is_running():
-        all_widgets = WidgetNode.query.filter_by(project_id=proj.id).all()
-        
-        relay_items = []
-        sensor_pages = []
-
-        for idx, w in enumerate(all_widgets):
-          # A. Kumpulkan data untuk Sinkronisasi UI (Pager)
-          if w.widget_type in ['LAMP_INDICATOR', 'PUMP_CONTROL', 'GATE_CONTROL', 'FAN_CONTROL', 'SMART_PLUG']:
-              ch = w.mapping.channel_index if w.mapping else 0
-              is_on = virtual_state["relay"][ch] if 0 <= ch < len(virtual_state["relay"]) else False
-              relay_items.append({"variable": w.label_name, "value": is_on})
-          elif w.widget_type.startswith('SENSOR_'):
-              sensor_pages.append({
-                  "page_id": f"env_{w.label_name}",
-                  "sensor_type": w.widget_type,
-                  "title": w.zone_name.upper() if w.zone_name else "AREA UMUM"
-              })
-
-        # B. Dapatkan Hardware Manifest resmi (ESP32)
-        deploy_manifest_dict, command_manifest_dict = generate_hardware_manifests(proj.id)
-
-        # 1. Pesan untuk UI Web Dashboard
-        msg_relay = json.dumps({"type": "runtime_list", "from": "server", "to": "all", "payload": {"relay": relay_items}})
-        msg_sensor = json.dumps({"type": "runtime_sensor_manifest", "from": "server", "to": "all", "payload": {"sensor_pages": sensor_pages}})
-        
-        # 2. SSoT Manifest Resmi untuk Slave 1 (Khusus Sensor)
-        deploy_manifest = json.dumps(deploy_manifest_dict)
-
-        # 3. Manifest Command Khusus untuk Slave 2 (Khusus Relay/Aktuator)
-        command_manifest = json.dumps(command_manifest_dict)
-
-        # Broadcast via WebSocket
         for d_id, ws in list(connected_devices.items()):
           if d_id.startswith("pager") or "pager" in d_id.lower():
             asyncio.run_coroutine_threadsafe(ws.send(msg_relay), WS_LOOP)
             asyncio.run_coroutine_threadsafe(ws.send(msg_sensor), WS_LOOP)
-          elif d_id.startswith("main_panel") or d_id.startswith("panel"):
-            # Tembakkan KEDUA manifest ke Main Panel sebagai Gateway
-            asyncio.run_coroutine_threadsafe(ws.send(deploy_manifest), WS_LOOP)
-            asyncio.run_coroutine_threadsafe(ws.send(command_manifest), WS_LOOP)
-            
-        print("[SERVER] ⚡ Layout disimpan! Dual Manifest (Sensor & Relay) dikirim ke Main Panel.")
-        print(f"  ↳ Sensor Manifest: {deploy_manifest}")
-        print(f"  ↳ Relay Command  : {command_manifest}")
+
+      # 3. Teruskan LANGSUNG Manifest ke Slave Controller melalui Edge TCP Router
+      global EDGE_LOOP
+      if EDGE_LOOP and EDGE_LOOP.is_running():
+          from edge_server.router import router
+          if deploy_manifest_dict and deploy_manifest_dict.get("instances"):
+              asyncio.run_coroutine_threadsafe(router.handle_from_hmi(deploy_manifest_dict), EDGE_LOOP)
+          if command_manifest_dict and command_manifest_dict.get("actuators"):
+              asyncio.run_coroutine_threadsafe(router.handle_from_hmi(command_manifest_dict), EDGE_LOOP)
+          print("[SERVER] ⚡ Layout disimpan! Manifest Sensor & Relay berhasil di-push ke Slave via EDGE_LOOP.")
+      else:
+          print("[SERVER] ⚠️ EDGE_LOOP belum aktif, manifest belum dapat diteruskan ke TCP.")
+
+      print(f"  ↳ Sensor Manifest: {deploy_manifest}")
+      print(f"  ↳ Relay Command  : {command_manifest}")
     except Exception as e:
       print(f"[SERVER] ⚠️ Gagal push live reload/manifest: {e}")
     # =====================================================================
@@ -742,10 +771,7 @@ def generate_project_json(project_id):
       
       comm_type = getattr(w.mapping, 'comm_type', None) if w.mapping else None
       if not comm_type:
-        if w.widget_type.startswith('SENSOR_'):
-          comm_type = 'UART' if w.widget_type == 'SENSOR_POWER' else ('SPI' if w.widget_type in ['SENSOR_FIRE', 'SENSOR_PIR'] else 'I2C')
-        else:
-          comm_type = 'RELAY'
+          comm_type = get_default_comm_type(w.widget_type)
 
       # Struktur dasar setiap node/komponen
       widget_data = {
@@ -822,10 +848,7 @@ def open_studio(project_id):
     icon_str = icons_map.get(w.widget_type, '◉')
     comm_type = getattr(w.mapping, 'comm_type', None) if w.mapping else None
     if not comm_type:
-      if w.widget_type.startswith('SENSOR_'):
-        comm_type = 'UART' if w.widget_type == 'SENSOR_POWER' else ('SPI' if w.widget_type in ['SENSOR_FIRE', 'SENSOR_PIR'] else 'I2C')
-      else:
-        comm_type = 'RELAY'
+        comm_type = get_default_comm_type(w.widget_type)
 
     widgets_data.append({
         "id": f"w_{w.id}",
@@ -1140,10 +1163,9 @@ def handle_general_relay(data):
         runtime_set_actuator(v, new_state)
     socketio.emit('update_status', get_web_payload(virtual_state))
 
-    # 3. Rakit Payload untuk Main Panel ESP32 (Hardware Slave)
+    # 3. Rakit Payload untuk Hardware Slave ESP32
     payload_to_esp = json.dumps({
         "type": "hardware_command",
-        "target": "main_panel_01",
         "payload": {
             "slave_id": 1,
             "module_type": "RELAY_8CH",
@@ -1152,12 +1174,15 @@ def handle_general_relay(data):
         }
     })
 
+
     # 4. Tembakkan ke Hardware & Pager via Raw WebSocket secara aman dan sinkron
-    global WS_LOOP
-    if WS_LOOP and WS_LOOP.is_running() and connected_devices:
+    global EDGE_LOOP
+    if EDGE_LOOP and EDGE_LOOP.is_running():
+        from edge_server.router import router
+        import asyncio
         asyncio.run_coroutine_threadsafe(
-            push_relay_to_connected_clients(payload_to_esp, channel, new_state, target_vars, relay_items),
-            WS_LOOP
+            router.handle_from_hmi(json.loads(payload_to_esp)),
+            EDGE_LOOP
         )
 
 # ──────────────────────────────────────────────
@@ -1170,7 +1195,7 @@ async def router_handler(websocket, *args):
   print(f"\033[94m[WS-8765] 🔌 TCP Connection dibuka dari IP: {client_ip}\033[0m")
 
   # Deteksi awal jika IP adalah Main Panel / Master
-  if is_hardware_panel("main_panel_01", client_ip):
+  if is_hardware_panel("", client_ip):
       device_id = "main_panel_01"
       connected_devices[device_id] = websocket
       REAL_PANEL_CONNECTED = True
@@ -1663,21 +1688,93 @@ async def router_handler(websocket, *args):
             print(f"[WS-8765] ⚠️ Hardware Panel/Master ({device_id}) terputus.")
     print(f"[WS-8765] 🔴 Perangkat terputus dari server: {device_id} ({client_ip})")
 
-async def run_ws_server():
-  global WS_LOOP
-  WS_LOOP = asyncio.get_running_loop()
-  print("[SERVER] SCS v1.0 Router siap di ws://192.168.88.254:8765 [MODE MURNI HARDWARE]")
-  await websockets.serve(router_handler, "192.168.88.254", 8765, ping_interval=None)
-  asyncio.create_task(st_engine_task())
-  await asyncio.Future()
+EDGE_LOOP = None
 
-def start_raw_websocket_server():
-  asyncio.run(run_ws_server())
+def process_inbound_from_edge(slave_uid, message):
+    global virtual_state, last_known_status
+    inner_type = message.get("type", "unknown")
+    payload = message.get("payload", {})
+    slave_id = message.get("slave_id", "N/A")
+    
+    if inner_type == "relay_ack":
+        ch = message.get("channel")
+        st = message.get("state")
+        if ch is not None and 0 <= ch < len(virtual_state["relay"]):
+            virtual_state["relay"][ch] = bool(st)
+            last_known_status = virtual_state
+            socketio.emit("update_status", get_web_payload(last_known_status))
+            print(f"[EDGE] 🎯 Konfirmasi Relay Slave ({slave_uid}) Ch-{ch} -> {'ON' if st else 'OFF'}")
+        return
+
+    if inner_type == "runtime_manifest_ack":
+        print(f"[EDGE] ✅ Manifest Acknowledged oleh Slave ({slave_uid}): {message.get('sensor_count', 0)} sensor, {message.get('relay_count', 0)} relay terpasang.")
+        return
+
+    if inner_type == "etl_data":
+        instance_id = message.get("instance_id", "unknown_instance")
+        sensor_type = message.get("sensor_type", "UNKNOWN")
+        values = payload
+
+        
+        primary_sensor_val = None
+        if values:
+            if "temperature" in values:
+                primary_sensor_val = values["temperature"]
+            elif "raw" in values:
+                primary_sensor_val = values["raw"]
+            elif "value" in values:
+                primary_sensor_val = values["value"]
+            else:
+                first_key = list(values.keys())[0]
+                primary_sensor_val = values[first_key]
+
+        if primary_sensor_val is not None:
+            runtime_set_sensor(instance_id, primary_sensor_val)
+
+        for key, val in values.items():
+            var_name = f"{instance_id}_{key}"
+            runtime_set_sensor(var_name, val)
+
+        if "instances" not in virtual_state:
+            virtual_state["instances"] = {}
+
+        virtual_state["instances"][instance_id] = {
+            "val": primary_sensor_val,
+            "temperature": values.get("temperature"),
+            "humidity": values.get("humidity"),
+            "raw": values.get("raw") or values.get("gas_ppm"),
+            "sensor_type": sensor_type,
+            "updated_at": time.time()
+        }
+
+        if "temperature" in values:
+            virtual_state["environment"]["temperature"] = values["temperature"]
+        if "humidity" in values:
+            virtual_state["environment"]["humidity"] = values["humidity"]
+        if "raw" in values:
+            virtual_state["environment"]["gas_ppm"] = values["raw"]
+        elif "gas_ppm" in values:
+            virtual_state["environment"]["gas_ppm"] = values["gas_ppm"]
+
+        if "voltage" in values:
+            virtual_state["power"]["voltage"] = values["voltage"]
+        if "power" in values:
+            virtual_state["power"]["power"] = values["power"]
+            
+        last_known_status = virtual_state
+        socketio.emit("update_status", get_web_payload(last_known_status))
+
+def start_st_engine_task():
+    global EDGE_LOOP
+    if EDGE_LOOP and EDGE_LOOP.is_running():
+        import asyncio
+        asyncio.run_coroutine_threadsafe(st_engine_task(), EDGE_LOOP)
 
 if __name__ == '__main__':
-  threading.Thread(target=start_raw_websocket_server, daemon=True).start()
+  local_ip = get_local_ip()
   print("=" * 60)
   print("  Smart Home Router SCS v1.0 [MODE MURNI HARDWARE RIIL]")
-  print("  Web Dashboard: http://192.168.88.254:5000")
+  print(f"  Web Dashboard (Local)  : http://localhost:5001")
+  print(f"  Web Dashboard (Network): http://{local_ip}:5001")
   print("=" * 60)
-  socketio.run(app, host='192.168.88.254', port=5000, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
+  socketio.run(app, host="0.0.0.0", port=5001, debug=False, use_reloader=False, allow_unsafe_werkzeug=True)
