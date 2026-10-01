@@ -5,6 +5,8 @@ __pycache__/
 venv/
 .vscode/
 *.log
+Dokumen/
+
 
 # Mengabaikan file executable dan dokumen proyek lokal
 ngrok.exe
